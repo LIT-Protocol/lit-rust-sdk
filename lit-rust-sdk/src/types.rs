@@ -101,16 +101,19 @@ pub struct SessionSignature {
 pub type SessionSignatures = HashMap<String, SessionSignature>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetPkpSessionSigsRequest {
-    #[serde(rename = "pkpPublicKey")]
-    pub pkp_public_key: String,
-    #[serde(rename = "capabilityAuthSigs")]
-    pub capability_auth_sigs: Vec<AuthSig>,
+pub struct SignSessionKeyRequest {
+    #[serde(rename = "sessionKey")]
+    pub session_key: String,
     #[serde(rename = "authMethods")]
     pub auth_methods: Vec<AuthMethod>,
-    #[serde(rename = "resourceAbilityRequests")]
-    pub resource_ability_requests: Vec<ResourceAbilityRequest>,
-    pub expiration: String,
+    #[serde(rename = "pkpPublicKey")]
+    pub pkp_public_key: String,
+    #[serde(rename = "siweMessage")]
+    pub siwe_message: String,
+    #[serde(rename = "curveType")]
+    pub curve_type: String,
+    #[serde(rename = "epoch", skip_serializing_if = "Option::is_none")]
+    pub epoch: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

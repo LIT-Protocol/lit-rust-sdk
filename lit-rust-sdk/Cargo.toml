@@ -18,6 +18,8 @@ ethers = "2.0"
 dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
+ed25519-dalek = "2.1"
+siwe = "0.6"
 
 [dev-dependencies]
 tokio-test = "0.4"

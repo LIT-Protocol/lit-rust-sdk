@@ -44,9 +44,17 @@ async fn test_get_pkp_session_sigs() {
         }
     }
 
-    // For this test, we'll use a mock PKP since we don't have contract integration yet
-    let mock_pkp_public_key = "0x04d2688b6bc2ce7f9049b142c091e86c59227a2a3a5e61c1b20cedf7e5a76d37b4c5c4d7f7b7a7c3b7d0b4e6c4f4c9b8e7a5e2d8a7b8c5d3f2a1e8b6c9";
-    let mock_capacity_token_id = "1";
+    // Load real PKP from environment
+    let pkp_public_key = std::env::var("PKP_PUBLIC_KEY")
+        .expect("PKP_PUBLIC_KEY environment variable not set");
+    let pkp_token_id = std::env::var("PKP_TOKEN_ID")
+        .expect("PKP_TOKEN_ID environment variable not set");
+    let pkp_eth_address = std::env::var("PKP_ETH_ADDRESS")
+        .expect("PKP_ETH_ADDRESS environment variable not set");
+    
+    println!("Using PKP public key: {}", pkp_public_key);
+    println!("Using PKP token ID: {}", pkp_token_id);
+    println!("Using PKP ETH address: {}", pkp_eth_address);
 
     // Create auth method
     println!("🔄 Creating auth method...");
@@ -66,7 +74,7 @@ async fn test_get_pkp_session_sigs() {
     let capacity_auth_sig = match client
         .create_capacity_delegation_auth_sig(
             &wallet,
-            mock_capacity_token_id,
+            &pkp_token_id,
             &delegatee_addresses,
             "1",
         )
@@ -95,7 +103,8 @@ async fn test_get_pkp_session_sigs() {
     println!("🔄 Getting PKP session signatures...");
     match client
         .get_pkp_session_sigs(
-            mock_pkp_public_key,
+            &pkp_public_key,
+            &pkp_eth_address,
             vec![capacity_auth_sig],
             vec![auth_method],
             resource_ability_requests,
@@ -119,16 +128,8 @@ async fn test_get_pkp_session_sigs() {
             );
         }
         Err(e) => {
-            // This is expected to fail for now since we're using mock data
-            // and the PKP/capacity token don't actually exist
-            println!("Expected failure (using mock data): {}", e);
-
-            // For now, we'll just verify that the error is reasonable
-            // In a real scenario with proper PKP setup, this should succeed
-            assert!(
-                e.to_string().contains("HTTP")
-                    || e.to_string().contains("Failed to get session signatures")
-            );
+            // This should now succeed with real PKP data, so panic if it fails
+            panic!("Failed to get PKP session signatures: {}", e);
         }
     }
 }
