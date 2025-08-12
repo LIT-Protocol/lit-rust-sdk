@@ -55,3 +55,4 @@ node_modules/
 
 # Project specific
 js-sdk/ 
+lit-assets/
