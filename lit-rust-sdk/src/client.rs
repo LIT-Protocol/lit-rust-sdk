@@ -3,13 +3,14 @@ use crate::{
     error::{Error, Result},
     types::{
         AuthMethod, AuthSig, ConnectionState, HandshakeRequest, HandshakeResponse,
-        NodeConnectionInfo, ResourceAbilityRequest, SessionSignatures, SignSessionKeyRequest,
+        NodeConnectionInfo, ResourceAbilityRequest, SessionKeySignedMessage, SessionSignature,
+        SessionSignatures, SignSessionKeyRequest,
     },
 };
 use dashmap::DashMap;
-use ed25519_dalek::{SecretKey, SigningKey};
+use ed25519_dalek::Signer;
 use ethers::types::Address;
-use rand::Rng;
+use rand::{Rng, RngCore};
 use reqwest::Client;
 use siwe::Message;
 use std::{collections::HashMap, sync::Arc};
@@ -276,14 +277,14 @@ impl LitNodeClient {
             return Err(Error::Other("Client not connected".to_string()));
         }
 
-        // Generate session keypair
-        let mut rng = rand::thread_rng();
-        let mut secret_bytes = [0u8; 32];
-        for byte in &mut secret_bytes {
-            *byte = rng.gen();
-        }
-        let session_keypair = SigningKey::from_bytes(&secret_bytes);
-        let session_public_key = hex::encode(session_keypair.verifying_key().as_bytes());
+        // Generate ed25519 keypair for session signatures
+        let session_keypair = {
+            let mut secret_bytes = [0u8; 32];
+            rand::rngs::OsRng.fill(&mut secret_bytes);
+            ed25519_dalek::SigningKey::from_bytes(&secret_bytes)
+        };
+        let session_verifying_key = session_keypair.verifying_key();
+        let session_public_key = hex::encode(session_verifying_key.to_bytes());
         let session_key_uri = format!("lit:session:{}", session_public_key);
 
         info!("Generated session key: {}", session_key_uri);
@@ -301,37 +302,59 @@ impl LitNodeClient {
 
         info!("Created SIWE message: {}", siwe_message);
 
-        // Send to all connected nodes and collect responses
+        // First, get the delegation signature from the PKP
+        let delegation_auth_sig = self
+            .get_delegation_signature_from_pkp(
+                pkp_public_key,
+                pkp_eth_address,
+                &auth_methods,
+                &siwe_message,
+                &session_key_uri,
+            )
+            .await?;
+
+        // Now create session signatures for each node
         let mut session_sigs = HashMap::new();
+        let now = chrono::Utc::now();
+        let issued_at = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        // Combine all capabilities
+        let mut capabilities = vec![delegation_auth_sig];
+        capabilities.extend(capability_auth_sigs);
 
         for node_url in self.connected_nodes() {
-            match self
-                .sign_session_key_with_node(
-                    &node_url,
-                    &session_key_uri,
-                    pkp_public_key,
-                    &auth_methods,
-                    &siwe_message,
-                )
-                .await
-            {
-                Ok(signed_message) => {
-                    // Create session signature from the signed message
-                    let session_sig = self
-                        .create_session_signature(&signed_message, &node_url, &session_keypair)
-                        .await?;
+            // Create the session key signed message for this node
+            let session_key_signed_message = SessionKeySignedMessage {
+                session_key: session_public_key.clone(),
+                resource_ability_requests: resource_ability_requests.clone(),
+                capabilities: capabilities.clone(),
+                issued_at: issued_at.clone(),
+                expiration: expiration.to_string(),
+                node_address: node_url.clone(),
+            };
 
-                    session_sigs.insert(node_url.clone(), session_sig);
-                }
-                Err(e) => {
-                    warn!("Failed to get session sig from node {}: {}", node_url, e);
-                }
-            }
+            // Serialize to JSON
+            let message =
+                serde_json::to_string(&session_key_signed_message).map_err(Error::Serialization)?;
+
+            // Sign with session key
+            let signature = session_keypair.sign(message.as_bytes());
+
+            // Create session signature
+            let session_sig = SessionSignature {
+                sig: signature.to_string(),
+                derived_via: "lit-session-sig".to_string(),
+                signed_message: message,
+                address: session_public_key.clone(),
+                algo: Some("ed25519".to_string()),
+            };
+
+            session_sigs.insert(node_url.clone(), session_sig);
         }
 
         if session_sigs.is_empty() {
             return Err(Error::Other(
-                "Failed to get session signatures from any node".to_string(),
+                "Failed to create session signatures for any node".to_string(),
             ));
         }
 
@@ -341,7 +364,7 @@ impl LitNodeClient {
     async fn create_siwe_message(
         &self,
         resource_ability_requests: &[ResourceAbilityRequest],
-        capability_auth_sigs: &[AuthSig],
+        _capability_auth_sigs: &[AuthSig],
         expiration: &str,
         pkp_eth_address: &str,
         session_key_uri: &str,
@@ -374,12 +397,12 @@ impl LitNodeClient {
 
         // Encode as base64 for the ReCap URI
         let recap_json = recap_data.to_string();
-        let recap_b64 = base64::encode(recap_json);
+        let recap_b64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, recap_json);
         let recap_uri = format!("urn:recap:{}", recap_b64);
 
-        // Create the SIWE message manually with proper format
-        let statement =
-            "I further authorize the stated URI to perform the following actions on my behalf:";
+        // Create the SIWE message with proper format matching the reference implementation
+        let statement = "I am delegating to a session key";
         let resources_str = if !resource_ability_requests.is_empty() {
             format!("\nResources:\n- {}", recap_uri)
         } else {
@@ -387,7 +410,8 @@ impl LitNodeClient {
         };
 
         let message = format!(
-            "lit-protocol.com wants you to sign in with your Ethereum account:\n{}\n\n{}{}\n\nURI: {}\nVersion: 1\nChain ID: 1\nNonce: {}\nIssued At: {}\nExpiration Time: {}",
+            "{} wants you to sign in with your Ethereum account:\n{}\n\n{}{}\n\nURI: {}\nVersion: 1\nChain ID: 1\nNonce: {}\nIssued At: {}\nExpiration Time: {}",
+            "localhost:3000",
             address,
             statement,
             resources_str,
@@ -398,11 +422,15 @@ impl LitNodeClient {
         );
 
         info!("Message: {:?}", message);
-        let parsed_message: Message = message.parse().unwrap();
-        info!(
-            "Parsed message when creating session sig SIWE: {:?}",
-            parsed_message
-        );
+        // Just for debugging - don't unwrap here as the message might not parse correctly
+        if let Ok(parsed_message) = message.parse::<Message>() {
+            info!(
+                "Parsed message when creating session sig SIWE: {:?}",
+                parsed_message
+            );
+        } else {
+            info!("Warning: SIWE message did not parse correctly for logging");
+        }
 
         Ok(message)
     }
@@ -417,87 +445,6 @@ impl LitNodeClient {
 
         // Use ethers to_checksum function for proper EIP-55 format
         Ok(to_checksum(&addr, None))
-    }
-
-    async fn sign_session_key_with_node(
-        &self,
-        node_url: &str,
-        session_key: &str,
-        pkp_public_key: &str,
-        auth_methods: &[AuthMethod],
-        siwe_message: &str,
-    ) -> Result<String> {
-        let endpoint = format!("{}/web/sign_session_key/v1", node_url);
-        let request_id = self.generate_request_id();
-
-        let request = SignSessionKeyRequest {
-            session_key: session_key.to_string(),
-            auth_methods: auth_methods.to_vec(),
-            pkp_public_key: pkp_public_key.to_string(),
-            siwe_message: siwe_message.to_string(),
-            curve_type: "BLS".to_string(),
-            epoch: None,
-        };
-
-        info!("Signing session key with node: {}", endpoint);
-        info!("Request: {:?}", request);
-
-        let response = timeout(
-            self.config.connect_timeout,
-            self.http_client
-                .post(&endpoint)
-                .header("X-Request-Id", request_id)
-                .json(&request)
-                .send(),
-        )
-        .await
-        .map_err(|_| Error::ConnectionTimeout)?
-        .map_err(Error::Network)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read body".to_string());
-            warn!(
-                "Session key signing failed with status {}: {}",
-                status, body
-            );
-            return Err(Error::Other(format!("HTTP {} - {}", status, body)));
-        }
-
-        let response_body = response.text().await.map_err(Error::Network)?;
-        info!("Session key signing response: {}", response_body);
-
-        // Parse the response to extract the signed message
-        let response_json: serde_json::Value =
-            serde_json::from_str(&response_body).map_err(Error::Serialization)?;
-
-        let signed_message = response_json
-            .get("signature")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| Error::Other("No signature in response".to_string()))?
-            .to_string();
-
-        Ok(signed_message)
-    }
-
-    async fn create_session_signature(
-        &self,
-        signed_message: &str,
-        node_url: &str,
-        _session_keypair: &SigningKey,
-    ) -> Result<crate::types::SessionSignature> {
-        // Create a session signature using the signed session key
-        // This is a simplified implementation
-        Ok(crate::types::SessionSignature {
-            sig: signed_message.to_string(),
-            derived_via: "lit-protocol".to_string(),
-            signed_message: signed_message.to_string(),
-            address: node_url.to_string(),
-            algo: Some("BLS".to_string()),
-        })
     }
 
     pub async fn create_capacity_delegation_auth_sig(
@@ -556,5 +503,86 @@ impl LitNodeClient {
             })?;
 
         Ok(block_hash.to_string())
+    }
+
+    async fn get_delegation_signature_from_pkp(
+        &self,
+        pkp_public_key: &str,
+        pkp_eth_address: &str,
+        auth_methods: &[AuthMethod],
+        siwe_message: &str,
+        session_key_uri: &str,
+    ) -> Result<AuthSig> {
+        // Get signatures from all nodes (we need threshold signatures)
+        let mut node_responses = Vec::new();
+
+        // same request id for all nodes
+        let request_id = self.generate_request_id();
+
+        for node_url in self.connected_nodes() {
+            let endpoint = format!("{}/web/sign_session_key/v1", node_url);
+            let request = SignSessionKeyRequest {
+                session_key: session_key_uri.to_string(),
+                auth_methods: auth_methods.to_vec(),
+                pkp_public_key: pkp_public_key.to_string(),
+                siwe_message: siwe_message.to_string(),
+                curve_type: "BLS".to_string(),
+                epoch: None,
+            };
+
+            info!("Signing session key with node: {}", endpoint);
+            let response = timeout(
+                self.config.connect_timeout,
+                self.http_client
+                    .post(&endpoint)
+                    .header("X-Request-Id", request_id)
+                    .json(&request)
+                    .send(),
+            )
+            .await
+            .map_err(|_| Error::ConnectionTimeout)?
+            .map_err(Error::Network)?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unable to read body".to_string());
+                warn!(
+                    "Session key signing failed with status {}: {}",
+                    status, body
+                );
+                continue;
+            }
+
+            let response_body = response.text().await.map_err(Error::Network)?;
+            let response_json: serde_json::Value =
+                serde_json::from_str(&response_body).map_err(Error::Serialization)?;
+
+            node_responses.push(response_json);
+        }
+
+        if node_responses.is_empty() {
+            return Err(Error::Other(
+                "Failed to get delegation signature from any node".to_string(),
+            ));
+        }
+
+        // For now, we'll use the first response's signature and SIWE message
+        // In a real implementation, we'd need to combine BLS signature shares
+        let first_response = &node_responses[0];
+        let signature = first_response
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| Error::Other("No signature in response".to_string()))?
+            .to_string();
+
+        Ok(AuthSig {
+            sig: signature,
+            derived_via: "lit.bls".to_string(),
+            signed_message: siwe_message.to_string(),
+            address: self.to_checksum_address(pkp_eth_address)?,
+        })
     }
 }

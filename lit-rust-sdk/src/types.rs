@@ -124,3 +124,14 @@ pub struct CapacityDelegationRequest {
     pub delegatee_addresses: Vec<String>,
     pub uses: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionKeySignedMessage {
+    pub session_key: String,
+    pub resource_ability_requests: Vec<ResourceAbilityRequest>,
+    pub capabilities: Vec<AuthSig>,
+    pub issued_at: String,
+    pub expiration: String,
+    pub node_address: String,
+}
