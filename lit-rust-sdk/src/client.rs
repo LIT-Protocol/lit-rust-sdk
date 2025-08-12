@@ -13,6 +13,9 @@ use ethers::types::Address;
 use rand::{Rng, RngCore};
 use reqwest::Client;
 use siwe::Message;
+use siwe_recap::Capability;
+use serde_json::Value;
+use std::ops::{Add, Sub};
 use std::{collections::HashMap, sync::Arc};
 use tokio::time::timeout;
 use tracing::{info, warn};
@@ -376,63 +379,69 @@ impl LitNodeClient {
         // Fetch the latest Ethereum block hash to use as nonce
         let nonce = self.get_latest_ethereum_blockhash().await?;
 
-        // Create a simple ReCap URI for the resources
-        // For now, create a basic ReCap structure manually based on Lit Protocol's expected format
-        let mut att_map = serde_json::Map::new();
+        // Create capabilities using siwe_recap::Capability like the reference implementation
+        let mut capabilities = Capability::<Value>::default();
 
-        // For PKP signing resources, add the capabilities
-        for req in resource_ability_requests {
-            if req.resource.resource_prefix == "lit-pkp" {
-                let ability_obj = serde_json::json!({
-                    req.ability.clone(): [{}]
-                });
-                att_map.insert(req.resource.resource.clone(), ability_obj);
-            }
-        }
+        let mut resources = vec![];
+        let mut resource_prefixes = vec![];
 
-        let recap_data = serde_json::json!({
-            "att": att_map,
-            "prf": []
-        });
-
-        // Encode as base64 for the ReCap URI
-        let recap_json = recap_data.to_string();
-        let recap_b64 =
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, recap_json);
-        let recap_uri = format!("urn:recap:{}", recap_b64);
-
-        // Create the SIWE message with proper format matching the reference implementation
-        let statement = "I am delegating to a session key";
-        let resources_str = if !resource_ability_requests.is_empty() {
-            format!("\nResources:\n- {}", recap_uri)
-        } else {
-            String::new()
-        };
-
-        let message = format!(
-            "{} wants you to sign in with your Ethereum account:\n{}\n\n{}{}\n\nURI: {}\nVersion: 1\nChain ID: 1\nNonce: {}\nIssued At: {}\nExpiration Time: {}",
-            "localhost:3000",
-            address,
-            statement,
-            resources_str,
-            session_key_uri,
-            nonce,
-            chrono::Utc::now().to_rfc3339(),
-            expiration
-        );
-
-        info!("Message: {:?}", message);
-        // Just for debugging - don't unwrap here as the message might not parse correctly
-        if let Ok(parsed_message) = message.parse::<Message>() {
-            info!(
-                "Parsed message when creating session sig SIWE: {:?}",
-                parsed_message
+        for resource_ability_request in resource_ability_requests.iter() {
+            let (resource, resource_prefix) = (
+                "*/*".to_string(),
+                format!(
+                    "{}://*",
+                    resource_ability_request.resource.resource_prefix.clone()
+                ),
             );
-        } else {
-            info!("Warning: SIWE message did not parse correctly for logging");
+
+            resources.push(resource);
+            resource_prefixes.push(resource_prefix);
         }
 
-        Ok(message)
+        for (resource, resource_prefix) in resources.iter().zip(resource_prefixes.iter()) {
+            let _ = capabilities.with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
+        }
+
+        // Parse the ETH address
+        let eth_address: [u8; 20] = hex::decode(&address[2..])
+            .map_err(|e| Error::Other(format!("Failed to decode address: {}", e)))?
+            .try_into()
+            .map_err(|_| Error::Other("Invalid address length".to_string()))?;
+
+        // Generate a SIWE message using the reference implementation format
+        let now = chrono::Utc::now();
+        let siwe_issued_at = now.sub(chrono::Duration::days(1));
+        let siwe_expiration_time = now.add(chrono::Duration::days(7));
+        
+        let siwe_message = capabilities
+            .build_message(Message {
+                domain: "localhost:3000".parse().unwrap(),
+                address: eth_address,
+                statement: Some(r#"I am delegating to a session key"#.into()),
+                uri: session_key_uri.parse().unwrap(),
+                version: siwe::Version::V1,
+                chain_id: 1,
+                nonce: nonce,
+                issued_at: siwe_issued_at
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                    .parse()
+                    .unwrap(),
+                expiration_time: Some(
+                    siwe_expiration_time
+                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                        .parse()
+                        .unwrap(),
+                ),
+                not_before: None,
+                request_id: None,
+                resources: vec![],
+            })
+            .map_err(|e| Error::Other(format!("Could not create SIWE message: {}", e)))?;
+
+        let message_str = siwe_message.to_string();
+        info!("Created SIWE message: {}", message_str);
+
+        Ok(message_str)
     }
 
     fn to_checksum_address(&self, address: &str) -> Result<String> {
@@ -535,7 +544,7 @@ impl LitNodeClient {
                 self.config.connect_timeout,
                 self.http_client
                     .post(&endpoint)
-                    .header("X-Request-Id", request_id)
+                    .header("X-Request-Id", request_id.clone())
                     .json(&request)
                     .send(),
             )
@@ -557,6 +566,7 @@ impl LitNodeClient {
             }
 
             let response_body = response.text().await.map_err(Error::Network)?;
+            info!("Session key signing response: {}", response_body);
             let response_json: serde_json::Value =
                 serde_json::from_str(&response_body).map_err(Error::Serialization)?;
 
@@ -573,7 +583,8 @@ impl LitNodeClient {
         // In a real implementation, we'd need to combine BLS signature shares
         let first_response = &node_responses[0];
         let signature = first_response
-            .get("signature")
+            .get("signatureShare")
+            .and_then(|share| share.get("ProofOfPossession"))
             .and_then(|v| v.as_str())
             .ok_or_else(|| Error::Other("No signature in response".to_string()))?
             .to_string();

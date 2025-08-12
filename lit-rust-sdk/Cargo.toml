@@ -19,7 +19,8 @@ dotenv = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 ed25519-dalek = "2.1"
-siwe = "0.6"
+siwe = "0.5"
+siwe-recap = { git = "https://github.com/spruceid/siwe-recap" }
 
 [dev-dependencies]
 tokio-test = "0.4"
