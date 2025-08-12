@@ -1,0 +1,1 @@
+The goal of this project is to create a Rust SDK that lets you use Lit Protocol. There is already an existing JS SDK in the js-sdk folder. Please use that as a reference when creating the rust SDK. Docs are available at https://developer.litprotocol.com/ and the typedocs are at https://v7-api-doc-lit-js-sdk.vercel.app/
