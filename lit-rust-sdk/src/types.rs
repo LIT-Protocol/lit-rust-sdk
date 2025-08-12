@@ -135,3 +135,37 @@ pub struct SessionKeySignedMessage {
     pub expiration: String,
     pub node_address: String,
 }
+
+// Execute JS types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteJsParams {
+    pub code: Option<String>,
+    #[serde(rename = "ipfsId")]
+    pub ipfs_id: Option<String>,
+    #[serde(rename = "sessionSigs")]
+    pub session_sigs: SessionSignatures,
+    #[serde(rename = "authMethods")]
+    pub auth_methods: Option<Vec<AuthMethod>>,
+    #[serde(rename = "jsParams")]
+    pub js_params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteJsResponse {
+    pub claims: HashMap<String, serde_json::Value>,
+    pub signatures: Option<serde_json::Value>,
+    pub decryptions: Vec<serde_json::Value>,
+    pub response: serde_json::Value,
+    pub logs: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeShare {
+    pub success: bool,
+    #[serde(rename = "signedData")]
+    pub signed_data: HashMap<String, serde_json::Value>,
+    #[serde(rename = "claimData")]
+    pub claim_data: HashMap<String, serde_json::Value>,
+    pub response: serde_json::Value,
+    pub logs: String,
+}

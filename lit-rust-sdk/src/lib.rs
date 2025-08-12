@@ -7,4 +7,4 @@ pub mod auth;
 pub use client::LitNodeClient;
 pub use config::{LitNetwork, LitNodeClientConfig};
 pub use error::{Error, Result};
-pub use types::{PKP, AuthSig, AuthMethod, SessionSignatures, ResourceAbilityRequest, LitResource};
+pub use types::{PKP, AuthSig, AuthMethod, SessionSignatures, ResourceAbilityRequest, LitResource, ExecuteJsParams, ExecuteJsResponse};

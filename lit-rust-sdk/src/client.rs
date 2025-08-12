@@ -2,21 +2,22 @@ use crate::{
     config::{LitNetwork, LitNodeClientConfig},
     error::{Error, Result},
     types::{
-        AuthMethod, AuthSig, ConnectionState, HandshakeRequest, HandshakeResponse,
-        NodeConnectionInfo, ResourceAbilityRequest, SessionKeySignedMessage, SessionSignature,
+        AuthMethod, AuthSig, ConnectionState, ExecuteJsParams, ExecuteJsResponse, HandshakeRequest, HandshakeResponse,
+        NodeConnectionInfo, NodeShare, ResourceAbilityRequest, SessionKeySignedMessage, SessionSignature,
         SessionSignatures, SignSessionKeyRequest,
     },
 };
 use dashmap::DashMap;
 use ed25519_dalek::Signer;
 use ethers::types::Address;
-use rand::{Rng, RngCore};
+use rand::Rng;
 use reqwest::Client;
 use siwe::Message;
 use siwe_recap::Capability;
 use serde_json::Value;
 use std::ops::{Add, Sub};
 use std::{collections::HashMap, sync::Arc};
+use base64;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
@@ -343,9 +344,12 @@ impl LitNodeClient {
             // Sign with session key
             let signature = session_keypair.sign(message.as_bytes());
 
+            // Convert signature to hex without 0x prefix (64 bytes = 128 hex chars)
+            let sig_hex = hex::encode(signature.to_bytes());
+
             // Create session signature
             let session_sig = SessionSignature {
-                sig: signature.to_string(),
+                sig: sig_hex,
                 derived_via: "lit-session-sig".to_string(),
                 signed_message: message,
                 address: session_public_key.clone(),
@@ -368,7 +372,7 @@ impl LitNodeClient {
         &self,
         resource_ability_requests: &[ResourceAbilityRequest],
         _capability_auth_sigs: &[AuthSig],
-        expiration: &str,
+        _expiration: &str,
         pkp_eth_address: &str,
         session_key_uri: &str,
     ) -> Result<String> {
@@ -595,5 +599,193 @@ impl LitNodeClient {
             signed_message: siwe_message.to_string(),
             address: self.to_checksum_address(pkp_eth_address)?,
         })
+    }
+
+    pub async fn execute_js(&self, params: ExecuteJsParams) -> Result<ExecuteJsResponse> {
+        if !self.ready {
+            return Err(Error::Other("Client not connected".to_string()));
+        }
+
+        if params.code.is_none() && params.ipfs_id.is_none() {
+            return Err(Error::Other("Either code or ipfsId must be provided".to_string()));
+        }
+
+        // Generate request ID for this execution
+        let request_id = self.generate_request_id();
+        info!("Executing Lit Action with request ID: {}", request_id);
+
+        // Get node promises
+        let mut node_responses = Vec::new();
+        let min_responses = (self.connected_nodes().len() * 2 / 3) + 1; // Require 2/3 + 1 responses
+
+        for node_url in self.connected_nodes() {
+            match self.execute_js_node_request(&node_url, &params, &request_id).await {
+                Ok(response) => {
+                    info!("Got response from node: {}", node_url);
+                    node_responses.push(response);
+                }
+                Err(e) => {
+                    warn!("Failed to get response from node {}: {}", node_url, e);
+                }
+            }
+        }
+
+        if node_responses.len() < min_responses {
+            return Err(Error::Other(format!(
+                "Not enough successful responses. Got {}, need {}",
+                node_responses.len(),
+                min_responses
+            )));
+        }
+
+        // Find the most common response
+        let most_common_response = self.find_most_common_response(&node_responses)?;
+
+        // Check if we have any signed data or claim data to aggregate
+        let has_signed_data = !most_common_response.signed_data.is_empty();
+        let has_claim_data = !most_common_response.claim_data.is_empty();
+
+        // If successful but no signing/claiming, return the response directly
+        if most_common_response.success && !has_signed_data && !has_claim_data {
+            return Ok(ExecuteJsResponse {
+                claims: HashMap::new(),
+                signatures: None,
+                decryptions: vec![],
+                response: most_common_response.response,
+                logs: most_common_response.logs,
+            });
+        }
+
+        // If not successful and no signed/claim data, this is an error case
+        if !has_signed_data && !has_claim_data {
+            return Ok(ExecuteJsResponse {
+                claims: HashMap::new(),
+                signatures: None,
+                decryptions: vec![],
+                response: most_common_response.response,
+                logs: most_common_response.logs,
+            });
+        }
+
+        // For now, we'll return the response without signature aggregation
+        // In a full implementation, we'd aggregate BLS signatures here
+        Ok(ExecuteJsResponse {
+            claims: most_common_response.claim_data,
+            signatures: Some(serde_json::Value::Object(
+                most_common_response.signed_data.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            )),
+            decryptions: vec![],
+            response: most_common_response.response,
+            logs: most_common_response.logs,
+        })
+    }
+
+    async fn execute_js_node_request(
+        &self,
+        node_url: &str,
+        params: &ExecuteJsParams,
+        request_id: &str,
+    ) -> Result<NodeShare> {
+        let endpoint = format!("{}/web/execute", node_url);
+        
+        // Get the session signature for this specific node URL
+        let session_sig = self.get_session_sig_by_url(&params.session_sigs, node_url)?;
+        
+        // Prepare the request body based on the JS SDK implementation
+        let mut request_body = serde_json::json!({
+            "authSig": session_sig,
+        });
+
+        if let Some(code) = &params.code {
+            // Encode the code as base64, similar to the JS SDK
+            let encoded_code = base64::encode(code.as_bytes());
+            request_body["code"] = serde_json::Value::String(encoded_code);
+        }
+
+        if let Some(ipfs_id) = &params.ipfs_id {
+            request_body["ipfsId"] = serde_json::Value::String(ipfs_id.clone());
+        }
+
+        if let Some(auth_methods) = &params.auth_methods {
+            request_body["authMethods"] = serde_json::to_value(auth_methods).map_err(Error::Serialization)?;
+        }
+
+        if let Some(js_params) = &params.js_params {
+            request_body["jsParams"] = js_params.clone();
+        }
+
+        info!("Sending execute request to {}: {}", endpoint, request_body);
+
+        let response = timeout(
+            self.config.connect_timeout,
+            self.http_client
+                .post(&endpoint)
+                .header("X-Request-Id", request_id)
+                .json(&request_body)
+                .send(),
+        )
+        .await
+        .map_err(|_| Error::ConnectionTimeout)?
+        .map_err(Error::Network)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read body".to_string());
+            warn!("Execute JS failed with status {}: {}", status, body);
+            return Err(Error::Other(format!("HTTP {} - {}", status, body)));
+        }
+
+        let response_body = response.text().await.map_err(Error::Network)?;
+        info!("Execute JS response from {}: {}", node_url, response_body);
+
+        let node_response: NodeShare = serde_json::from_str(&response_body).map_err(|e| {
+            warn!("Failed to parse execute JS response: {}", e);
+            Error::Serialization(e)
+        })?;
+
+        Ok(node_response)
+    }
+
+    fn find_most_common_response(&self, responses: &[NodeShare]) -> Result<NodeShare> {
+        if responses.is_empty() {
+            return Err(Error::Other("No responses to find consensus from".to_string()));
+        }
+
+        // For now, just return the first successful response
+        // In a full implementation, we'd find the most common response based on content hash
+        for response in responses {
+            if response.success {
+                return Ok(response.clone());
+            }
+        }
+
+        // If no successful responses, return the first one (will contain error info)
+        Ok(responses[0].clone())
+    }
+
+    fn get_session_sig_by_url(
+        &self,
+        session_sigs: &SessionSignatures,
+        url: &str,
+    ) -> Result<SessionSignature> {
+        if session_sigs.is_empty() {
+            return Err(Error::Other("You must pass in sessionSigs".to_string()));
+        }
+
+        let session_sig = session_sigs
+            .get(url)
+            .ok_or_else(|| {
+                Error::Other(format!(
+                    "You passed sessionSigs but we could not find session sig for node {}",
+                    url
+                ))
+            })?;
+
+        Ok(session_sig.clone())
     }
 }
