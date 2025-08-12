@@ -1,7 +1,10 @@
 use crate::{
     config::{LitNetwork, LitNodeClientConfig},
     error::{Error, Result},
-    types::{ConnectionState, HandshakeRequest, HandshakeResponse, NodeConnectionInfo},
+    types::{
+        AuthMethod, AuthSig, ConnectionState, GetPkpSessionSigsRequest, HandshakeRequest,
+        HandshakeResponse, NodeConnectionInfo, ResourceAbilityRequest, SessionSignatures,
+    },
 };
 use dashmap::DashMap;
 use rand::Rng;
@@ -243,5 +246,98 @@ impl LitNodeClient {
             hd_root_pubkeys: self.hd_root_pubkeys.clone(),
             latest_blockhash: self.latest_blockhash.clone(),
         }
+    }
+
+    pub async fn get_pkp_session_sigs(
+        &self,
+        pkp_public_key: &str,
+        capability_auth_sigs: Vec<AuthSig>,
+        auth_methods: Vec<AuthMethod>,
+        resource_ability_requests: Vec<ResourceAbilityRequest>,
+        expiration: &str,
+    ) -> Result<SessionSignatures> {
+        if !self.ready {
+            return Err(Error::Other("Client not connected".to_string()));
+        }
+
+        let request = GetPkpSessionSigsRequest {
+            pkp_public_key: pkp_public_key.to_string(),
+            capability_auth_sigs,
+            auth_methods,
+            resource_ability_requests,
+            expiration: expiration.to_string(),
+        };
+
+        // Send to all connected nodes and collect responses
+        let mut session_sigs = HashMap::new();
+        
+        for node_url in self.connected_nodes() {
+            match self.send_pkp_session_sig_request(&node_url, &request).await {
+                Ok(node_session_sigs) => {
+                    for (key, sig) in node_session_sigs {
+                        session_sigs.insert(key, sig);
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to get session sigs from node {}: {}", node_url, e);
+                }
+            }
+        }
+
+        if session_sigs.is_empty() {
+            return Err(Error::Other("Failed to get session signatures from any node".to_string()));
+        }
+
+        Ok(session_sigs)
+    }
+
+    async fn send_pkp_session_sig_request(
+        &self,
+        node_url: &str,
+        request: &GetPkpSessionSigsRequest,
+    ) -> Result<SessionSignatures> {
+        let endpoint = format!("{}/web/pkp/sign", node_url);
+        let request_id = self.generate_request_id();
+
+        info!("Sending PKP session sig request to {}", endpoint);
+
+        let response = timeout(
+            self.config.connect_timeout,
+            self.http_client
+                .post(&endpoint)
+                .header("X-Request-Id", request_id)
+                .json(request)
+                .send()
+        )
+        .await
+        .map_err(|_| Error::ConnectionTimeout)?
+        .map_err(Error::Network)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_else(|_| "Unable to read body".to_string());
+            warn!("PKP session sig request failed with status {}: {}", status, body);
+            return Err(Error::Other(format!("HTTP {} - {}", status, body)));
+        }
+
+        let session_sigs: SessionSignatures = response.json().await
+            .map_err(Error::Network)?;
+
+        Ok(session_sigs)
+    }
+
+    pub async fn create_capacity_delegation_auth_sig(
+        &self,
+        wallet: &ethers::signers::LocalWallet,
+        capacity_token_id: &str,
+        delegatee_addresses: &[String],
+        uses: &str,
+    ) -> Result<AuthSig> {
+        crate::auth::EthWalletProvider::create_capacity_delegation_auth_sig(
+            wallet,
+            capacity_token_id,
+            delegatee_addresses,
+            uses,
+        ).await
     }
 }

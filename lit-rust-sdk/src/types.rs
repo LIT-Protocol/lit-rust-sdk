@@ -44,3 +44,80 @@ pub struct ConnectionState {
     pub hd_root_pubkeys: Option<Vec<String>>,
     pub latest_blockhash: Option<String>,
 }
+
+// PKP related types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PKP {
+    #[serde(rename = "tokenId")]
+    pub token_id: String,
+    #[serde(rename = "publicKey")]
+    pub public_key: String,
+    #[serde(rename = "ethAddress")]
+    pub eth_address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthSig {
+    pub sig: String,
+    #[serde(rename = "derivedVia")]
+    pub derived_via: String,
+    #[serde(rename = "signedMessage")]
+    pub signed_message: String,
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthMethod {
+    #[serde(rename = "authMethodType")]
+    pub auth_method_type: u32,
+    #[serde(rename = "accessToken")]
+    pub access_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LitResource {
+    pub resource: String,
+    #[serde(rename = "resourcePrefix")]
+    pub resource_prefix: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceAbilityRequest {
+    pub resource: LitResource,
+    pub ability: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSignature {
+    pub sig: String,
+    #[serde(rename = "derivedVia")]
+    pub derived_via: String,
+    #[serde(rename = "signedMessage")]
+    pub signed_message: String,
+    pub address: String,
+    pub algo: Option<String>,
+}
+
+pub type SessionSignatures = HashMap<String, SessionSignature>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetPkpSessionSigsRequest {
+    #[serde(rename = "pkpPublicKey")]
+    pub pkp_public_key: String,
+    #[serde(rename = "capabilityAuthSigs")]
+    pub capability_auth_sigs: Vec<AuthSig>,
+    #[serde(rename = "authMethods")]
+    pub auth_methods: Vec<AuthMethod>,
+    #[serde(rename = "resourceAbilityRequests")]
+    pub resource_ability_requests: Vec<ResourceAbilityRequest>,
+    pub expiration: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapacityDelegationRequest {
+    #[serde(rename = "capacityTokenId")]
+    pub capacity_token_id: String,
+    #[serde(rename = "delegateeAddresses")]
+    pub delegatee_addresses: Vec<String>,
+    pub uses: String,
+}
