@@ -21,6 +21,8 @@ base64 = "0.22"
 ed25519-dalek = "2.1"
 siwe = "0.5"
 siwe-recap = { git = "https://github.com/spruceid/siwe-recap" }
+blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
+elliptic-curve = "0.13"
 
 [dev-dependencies]
 tokio-test = "0.4"

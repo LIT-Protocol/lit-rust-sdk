@@ -7,7 +7,8 @@ use crate::{
         SessionKeySignedMessage, SessionSignature, SessionSignatures, SignSessionKeyRequest,
     },
 };
-use base64;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use blsful::{Bls12381G2Impl, Signature, SignatureShare};
 use dashmap::DashMap;
 use ed25519_dalek::Signer;
 use ethers::types::Address;
@@ -344,15 +345,26 @@ impl LitNodeClient {
             // Sign with session key
             let signature = session_keypair.sign(message.as_bytes());
 
-            // Convert signature to hex without 0x prefix (64 bytes = 128 hex chars)
-            let sig_hex = hex::encode(signature.to_bytes());
+            // Convert signature to hex and add a recovery ID byte (65 bytes = 130 hex chars)
+            // Ed25519 signatures don't have recovery IDs, so we append 0x00
+            let mut sig_bytes = signature.to_bytes().to_vec();
+            sig_bytes.push(0x00); // Add recovery ID byte
+            let sig_hex = hex::encode(sig_bytes);
 
             // Create session signature
+            // For session signatures, use the session public key as address
+            // But truncate to 20 bytes (40 hex chars) to match Ethereum address format
+            let session_address = if session_public_key.len() > 40 {
+                session_public_key[..40].to_string()
+            } else {
+                session_public_key.clone()
+            };
+
             let session_sig = SessionSignature {
                 sig: sig_hex,
                 derived_via: "lit-session-sig".to_string(),
                 signed_message: message,
-                address: session_public_key.clone(),
+                address: session_address,
                 algo: Some("ed25519".to_string()),
             };
 
@@ -673,17 +685,12 @@ impl LitNodeClient {
             });
         }
 
-        // For now, we'll return the response without signature aggregation
-        // In a full implementation, we'd aggregate BLS signatures here
+        // Combine BLS signature shares from all nodes
+        let combined_signatures = self.collect_signature_shares(&node_responses)?;
+
         Ok(ExecuteJsResponse {
             claims: most_common_response.claim_data,
-            signatures: Some(serde_json::Value::Object(
-                most_common_response
-                    .signed_data
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect(),
-            )),
+            signatures: combined_signatures,
             decryptions: vec![],
             response: most_common_response.response,
             logs: most_common_response.logs,
@@ -708,7 +715,7 @@ impl LitNodeClient {
 
         if let Some(code) = &params.code {
             // Encode the code as base64, similar to the JS SDK
-            let encoded_code = base64::encode(code.as_bytes());
+            let encoded_code = BASE64.encode(code.as_bytes());
             request_body["code"] = serde_json::Value::String(encoded_code);
         }
 
@@ -796,5 +803,128 @@ impl LitNodeClient {
         })?;
 
         Ok(session_sig.clone())
+    }
+
+    fn collect_signature_shares(
+        &self,
+        node_responses: &[NodeShare],
+    ) -> Result<Option<serde_json::Value>> {
+        // Collect signature shares from successful responses
+        let mut signature_groups = std::collections::HashMap::<String, Vec<Vec<u8>>>::new();
+
+        for response in node_responses {
+            if !response.success || response.signed_data.is_empty() {
+                continue;
+            }
+
+            // Group signature shares by signature name
+            for (sig_name, sig_data) in &response.signed_data {
+                if let Some(signature_share) = sig_data.get("signatureShare") {
+                    if let Some(share_hex) = signature_share.as_str() {
+                        // Remove 0x prefix if present and decode hex
+                        let share_hex = share_hex.strip_prefix("0x").unwrap_or(share_hex);
+                        if let Ok(share_bytes) = hex::decode(share_hex) {
+                            signature_groups
+                                .entry(sig_name.clone())
+                                .or_insert_with(Vec::new)
+                                .push(share_bytes);
+                        }
+                    }
+                }
+            }
+        }
+
+        if signature_groups.is_empty() {
+            return Ok(None);
+        }
+
+        // Combine signature shares for each signature name
+        let mut combined_signatures = serde_json::Map::new();
+
+        for (sig_name, shares) in signature_groups {
+            if shares.len() < 2 {
+                // Need at least 2 shares to combine
+                continue;
+            }
+
+            match self.combine_bls_signature_shares(&shares) {
+                Ok(combined_sig) => {
+                    let combined_sig_hex = format!("0x{}", hex::encode(combined_sig));
+                    combined_signatures
+                        .insert(sig_name, serde_json::Value::String(combined_sig_hex));
+                }
+                Err(e) => {
+                    warn!("Failed to combine signature shares for {}: {}", sig_name, e);
+                    // Fallback to returning the shares as-is
+                    let shares_json: Vec<_> = shares
+                        .iter()
+                        .map(|s| serde_json::Value::String(format!("0x{}", hex::encode(s))))
+                        .collect();
+                    combined_signatures.insert(sig_name, serde_json::Value::Array(shares_json));
+                }
+            }
+        }
+
+        if combined_signatures.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(serde_json::Value::Object(combined_signatures)))
+        }
+    }
+
+    fn combine_bls_signature_shares(&self, shares: &[Vec<u8>]) -> Result<Vec<u8>> {
+        info!("Combining BLS signature shares: {:?}", shares);
+        if shares.len() < 2 {
+            return Err(Error::Other(
+                "Need at least 2 signature shares to combine".to_string(),
+            ));
+        }
+
+        // Convert byte vectors to SignatureShare objects
+        let signature_shares: Result<Vec<_>> = shares
+            .iter()
+            .map(|share| {
+                // Parse as BLS signature share using serde_json (like in lit-node)
+                // First try to convert bytes to hex string if needed
+                let share_hex = if share.len() == 96 {
+                    // Raw bytes, convert to hex
+                    hex::encode(share)
+                } else {
+                    // Assume it's already a hex string
+                    String::from_utf8(share.clone())
+                        .map_err(|_| Error::Other("Invalid hex string".to_string()))?
+                };
+
+                // Parse as JSON string like in lit-node implementation
+                serde_json::from_str::<SignatureShare<Bls12381G2Impl>>(&format!(
+                    "\"{}\"",
+                    share_hex
+                ))
+                .map_err(|e| Error::Other(format!("Failed to parse signature share: {}", e)))
+            })
+            .collect();
+
+        let signature_shares = signature_shares?;
+
+        // Use the from_shares method like in lit-node implementation
+        match Signature::<Bls12381G2Impl>::from_shares(&signature_shares) {
+            Ok(combined_signature) => {
+                // Serialize the combined signature to get bytes
+                let signature_json = serde_json::to_string(&combined_signature).map_err(|e| {
+                    Error::Other(format!("Failed to serialize combined signature: {}", e))
+                })?;
+
+                // The signature JSON will be a hex string, extract the hex part
+                let signature_hex = signature_json.trim_matches('"');
+                let signature_bytes = hex::decode(signature_hex)
+                    .map_err(|e| Error::Other(format!("Failed to decode signature hex: {}", e)))?;
+                info!("Combined signature bytes: {:?}", signature_bytes);
+                Ok(signature_bytes)
+            }
+            Err(e) => Err(Error::Other(format!(
+                "Failed to combine BLS signature shares: {}",
+                e
+            ))),
+        }
     }
 }
