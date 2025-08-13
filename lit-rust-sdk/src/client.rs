@@ -652,7 +652,7 @@ impl LitNodeClient {
 
         // Get node promises
         let mut node_responses = Vec::new();
-        let min_responses = (self.connected_nodes().len() * 2 / 3) + 1; // Require 2/3 + 1 responses
+        let min_responses = (self.connected_nodes().len() * 2 / 3); // Require 2/3 responses
 
         for node_url in self.connected_nodes() {
             match self
