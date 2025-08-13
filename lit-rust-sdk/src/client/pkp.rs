@@ -26,7 +26,9 @@ impl super::LitNodeClient {
         resource_ability_requests: Vec<LitResourceAbilityRequest>,
         expiration: &str,
     ) -> Result<SessionSignatures> {
-        if !self.ready { return Err(Error::Other("Client not connected".to_string())); }
+        if !self.ready {
+            return Err(Error::Other("Client not connected".to_string()));
+        }
 
         let session_keypair = {
             let mut secret_bytes = [0u8; 32];
@@ -39,12 +41,24 @@ impl super::LitNodeClient {
         info!("Generated session key: {}", session_key_uri);
 
         let siwe_message = self
-            .create_siwe_message(&resource_ability_requests, &capability_auth_sigs, expiration, pkp_eth_address, &session_key_uri)
+            .create_siwe_message(
+                &resource_ability_requests,
+                &capability_auth_sigs,
+                expiration,
+                pkp_eth_address,
+                &session_key_uri,
+            )
             .await?;
         info!("Created SIWE message: {}", siwe_message);
 
         let delegation_auth_sig = self
-            .get_delegation_signature_from_pkp(pkp_public_key, pkp_eth_address, &auth_methods, &siwe_message, &session_key_uri)
+            .get_delegation_signature_from_pkp(
+                pkp_public_key,
+                pkp_eth_address,
+                &auth_methods,
+                &siwe_message,
+                &session_key_uri,
+            )
             .await?;
         info!("Delegation auth sig: {:?}", delegation_auth_sig);
 
@@ -64,7 +78,8 @@ impl super::LitNodeClient {
                 expiration: expiration.to_string(),
                 node_address: node_url.to_owned(),
             };
-            let message = serde_json::to_string(&session_key_signed_message).map_err(Error::Serialization)?;
+            let message =
+                serde_json::to_string(&session_key_signed_message).map_err(Error::Serialization)?;
             let signature = session_keypair.sign(message.as_bytes());
             let session_sig = SessionSignature {
                 sig: signature.to_string(),
@@ -77,7 +92,9 @@ impl super::LitNodeClient {
         }
 
         if session_sigs.is_empty() {
-            return Err(Error::Other("Failed to create session signatures for any node".to_string()));
+            return Err(Error::Other(
+                "Failed to create session signatures for any node".to_string(),
+            ));
         }
         Ok(session_sigs)
     }
@@ -98,14 +115,21 @@ impl super::LitNodeClient {
         let mut resources = vec![];
         let mut resource_prefixes = vec![];
         for resource_ability_request in resource_ability_requests.iter() {
-            let (resource, resource_prefix) = ("*/*".to_string(), format!("{}://*", resource_ability_request.resource.resource_prefix.clone()));
+            let (resource, resource_prefix) = (
+                "*/*".to_string(),
+                format!(
+                    "{}://*",
+                    resource_ability_request.resource.resource_prefix.clone()
+                ),
+            );
             resources.push(resource);
             resource_prefixes.push(resource_prefix);
         }
 
         let mut capabilities = Capability::<Value>::default();
         for (resource, resource_prefix) in resources.iter().zip(resource_prefixes.iter()) {
-            let _ = capabilities.with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
+            let _ = capabilities
+                .with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
         }
 
         let eth_address: [u8; 20] = hex::decode(&address[2..])
@@ -126,8 +150,16 @@ impl super::LitNodeClient {
                 version: siwe::Version::V1,
                 chain_id: 1,
                 nonce: nonce,
-                issued_at: siwe_issued_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true).parse().unwrap(),
-                expiration_time: Some(siwe_expiration_time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true).parse().unwrap()),
+                issued_at: siwe_issued_at
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                    .parse()
+                    .unwrap(),
+                expiration_time: Some(
+                    siwe_expiration_time
+                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                        .parse()
+                        .unwrap(),
+                ),
                 not_before: None,
                 request_id: None,
                 resources: vec![],
@@ -141,7 +173,9 @@ impl super::LitNodeClient {
 
     fn to_checksum_address(&self, address: &str) -> Result<String> {
         use ethers::utils::to_checksum;
-        let addr: Address = address.parse().map_err(|_| Error::Other("Invalid address format".to_string()))?;
+        let addr: Address = address
+            .parse()
+            .map_err(|_| Error::Other("Invalid address format".to_string()))?;
         Ok(to_checksum(&addr, None))
     }
 
@@ -152,27 +186,46 @@ impl super::LitNodeClient {
         delegatee_addresses: &[String],
         uses: &str,
     ) -> Result<AuthSig> {
-        EthWalletProvider::create_capacity_delegation_auth_sig(wallet, capacity_token_id, delegatee_addresses, uses).await
+        EthWalletProvider::create_capacity_delegation_auth_sig(
+            wallet,
+            capacity_token_id,
+            delegatee_addresses,
+            uses,
+        )
+        .await
     }
 
     async fn get_latest_ethereum_blockhash(&self) -> Result<String> {
-        let rpc_url = std::env::var("ETHEREUM_RPC_URL").map_err(|_| Error::Other("ETHEREUM_RPC_URL environment variable not set".to_string()))?;
+        let rpc_url = std::env::var("ETHEREUM_RPC_URL").map_err(|_| {
+            Error::Other("ETHEREUM_RPC_URL environment variable not set".to_string())
+        })?;
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "eth_getBlockByNumber",
             "params": ["latest", false],
             "id": 1
         });
-        let response = self.http_client.post(&rpc_url).json(&request).send().await.map_err(Error::Network)?;
+        let response = self
+            .http_client
+            .post(&rpc_url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(Error::Network)?;
         if !response.status().is_success() {
-            return Err(Error::Other(format!("Failed to fetch latest block: HTTP {}", response.status())));
+            return Err(Error::Other(format!(
+                "Failed to fetch latest block: HTTP {}",
+                response.status()
+            )));
         }
         let response_json: serde_json::Value = response.json().await.map_err(Error::Network)?;
         let block_hash = response_json
             .get("result")
             .and_then(|result| result.get("hash"))
             .and_then(|hash| hash.as_str())
-            .ok_or_else(|| Error::Other("Failed to extract block hash from response".to_string()))?;
+            .ok_or_else(|| {
+                Error::Other("Failed to extract block hash from response".to_string())
+            })?;
         Ok(block_hash.to_string())
     }
 
@@ -201,7 +254,11 @@ impl super::LitNodeClient {
             info!("Signing session key with node: {}", endpoint);
             let response = timeout(
                 self.config.connect_timeout,
-                self.http_client.post(&endpoint).header("X-Request-Id", request_id.clone()).json(&request).send(),
+                self.http_client
+                    .post(&endpoint)
+                    .header("X-Request-Id", request_id.clone())
+                    .json(&request)
+                    .send(),
             )
             .await
             .map_err(|_| Error::ConnectionTimeout)?
@@ -209,8 +266,14 @@ impl super::LitNodeClient {
 
             if !response.status().is_success() {
                 let status = response.status();
-                let body = response.text().await.unwrap_or_else(|_| "Unable to read body".to_string());
-                warn!("Session key signing failed with status {}: {}", status, body);
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unable to read body".to_string());
+                warn!(
+                    "Session key signing failed with status {}: {}",
+                    status, body
+                );
                 continue;
             }
 
@@ -220,7 +283,9 @@ impl super::LitNodeClient {
         }
 
         if node_responses.is_empty() {
-            return Err(Error::Other("Failed to get delegation signature from any node".to_string()));
+            return Err(Error::Other(
+                "Failed to get delegation signature from any node".to_string(),
+            ));
         }
 
         let parsed_responses: Vec<JsonSignSessionKeyResponseV1> = node_responses
@@ -237,12 +302,16 @@ impl super::LitNodeClient {
         let signature = match Signature::from_shares(&shares) {
             Ok(s) => s,
             Err(e) => {
-                return Err(Error::Other(format!("Failed to combine BLS signature shares: {}", e)));
+                return Err(Error::Other(format!(
+                    "Failed to combine BLS signature shares: {}",
+                    e
+                )));
             }
         };
 
         let bls_root_key = blsful::PublicKey::<Bls12381G2Impl>::try_from(
-            &hex::decode(&one_response_with_share.bls_root_pubkey).expect("Failed to decode root key"),
+            &hex::decode(&one_response_with_share.bls_root_pubkey)
+                .expect("Failed to decode root key"),
         )
         .expect("Failed to convert bls public key from bytes");
         let _ = signature
@@ -266,5 +335,3 @@ impl super::LitNodeClient {
         })
     }
 }
-
-

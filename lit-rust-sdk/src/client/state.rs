@@ -2,18 +2,27 @@ use crate::types::ConnectionState;
 use std::collections::HashMap;
 
 impl super::LitNodeClient {
-    pub fn is_ready(&self) -> bool { self.ready }
+    pub fn is_ready(&self) -> bool {
+        self.ready
+    }
 
     pub fn connected_nodes(&self) -> Vec<String> {
-        self.connection_state.iter().map(|entry| entry.key().clone()).collect()
+        self.connection_state
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect()
     }
 
     pub fn get_connection_state(&self) -> ConnectionState {
         let mut server_keys = HashMap::new();
-        let connected_nodes: Vec<String> = self.connection_state.iter().map(|entry| {
-            server_keys.insert(entry.key().clone(), entry.handshake_response.clone());
-            entry.key().clone()
-        }).collect();
+        let connected_nodes: Vec<String> = self
+            .connection_state
+            .iter()
+            .map(|entry| {
+                server_keys.insert(entry.key().clone(), entry.handshake_response.clone());
+                entry.key().clone()
+            })
+            .collect();
 
         ConnectionState {
             connected_nodes,
@@ -26,5 +35,3 @@ impl super::LitNodeClient {
         }
     }
 }
-
-

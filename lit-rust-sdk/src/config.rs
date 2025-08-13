@@ -19,7 +19,7 @@ impl LitNetwork {
             LitNetwork::Custom => None,
         }
     }
-    
+
     pub fn rpc_url(&self) -> Option<&'static str> {
         match self {
             LitNetwork::DatilDev => Some("https://chain-rpc.litprotocol.com/http"),
