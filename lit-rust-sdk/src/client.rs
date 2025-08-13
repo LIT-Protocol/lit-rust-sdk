@@ -21,7 +21,7 @@ use siwe_recap::Capability;
 use std::ops::{Add, Sub};
 use std::{collections::HashMap, sync::Arc};
 use tokio::time::timeout;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub struct LitNodeClient {
     config: LitNodeClientConfig,
@@ -652,7 +652,7 @@ impl LitNodeClient {
 
         // Get node promises
         let mut node_responses = Vec::new();
-        let min_responses = (self.connected_nodes().len() * 2 / 3); // Require 2/3 responses
+        let min_responses = self.connected_nodes().len() * 2 / 3; // Require 2/3 responses
 
         for node_url in self.connected_nodes() {
             match self
@@ -753,13 +753,15 @@ impl LitNodeClient {
             request_body["jsParams"] = js_params.clone();
         }
 
-        info!("Sending execute request to {}: {}", endpoint, request_body);
+        debug!("Sending execute request to {}: {}", endpoint, request_body);
 
         let response = timeout(
             self.config.connect_timeout,
             self.http_client
                 .post(&endpoint)
                 .header("X-Request-Id", request_id)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
                 .json(&request_body)
                 .send(),
         )
