@@ -1,10 +1,10 @@
+pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
 pub mod types;
-pub mod auth;
 
 pub use client::LitNodeClient;
 pub use config::{LitNetwork, LitNodeClientConfig};
 pub use error::{Error, Result};
-pub use types::{PKP, AuthSig, AuthMethod, SessionSignatures, ResourceAbilityRequest, LitResource, ExecuteJsParams, ExecuteJsResponse};
+pub use types::{AuthMethod, AuthSig, ExecuteJsParams, ExecuteJsResponse, SessionSignatures, PKP};

@@ -1,7 +1,8 @@
 use ethers::signers::Signer;
 use lit_rust_sdk::{
-    auth::{create_pkp_resource, load_wallet_from_env, EthWalletProvider},
-    LitNetwork, LitNodeClient, LitNodeClientConfig, ResourceAbilityRequest,
+    auth::{load_wallet_from_env, EthWalletProvider},
+    types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
+    LitNetwork, LitNodeClient, LitNodeClientConfig,
 };
 use std::time::Duration;
 
@@ -85,9 +86,17 @@ async fn test_get_pkp_session_sigs() {
     };
 
     // Create resource ability requests
-    let resource_ability_requests = vec![ResourceAbilityRequest {
-        resource: create_pkp_resource("*"),
-        ability: "lit-pkp-signing".to_string(),
+    // let resource_ability_requests = vec![ResourceAbilityRequest {
+    //     resource: create_pkp_resource("*"),
+    //     ability: "lit-pkp-signing".to_string(),
+    // }];
+
+    let resource_ability_requests = vec![LitResourceAbilityRequest {
+        resource: LitResourceAbilityRequestResource {
+            resource: "*".to_string(),
+            resource_prefix: "lit-pkp://".to_string(),
+        },
+        ability: LitAbility::PKPSigning.to_string(),
     }];
 
     // Set expiration to 10 minutes from now

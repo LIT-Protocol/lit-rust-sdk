@@ -3,9 +3,9 @@ use crate::{
     error::{Error, Result},
     types::{
         AuthMethod, AuthSig, ConnectionState, ExecuteJsParams, ExecuteJsResponse, HandshakeRequest,
-        HandshakeResponse, JsonSignSessionKeyResponseV1, NodeConnectionInfo, NodeShare,
-        ResourceAbilityRequest, SessionKeySignedMessage, SessionSignature, SessionSignatures,
-        SignSessionKeyRequest,
+        HandshakeResponse, JsonSignSessionKeyResponseV1, LitResourceAbilityRequest,
+        NodeConnectionInfo, NodeShare, SessionKeySignedMessage, SessionSignature,
+        SessionSignatures, SignSessionKeyRequest,
     },
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -276,7 +276,7 @@ impl LitNodeClient {
         pkp_eth_address: &str,
         capability_auth_sigs: Vec<AuthSig>,
         auth_methods: Vec<AuthMethod>,
-        resource_ability_requests: Vec<ResourceAbilityRequest>,
+        resource_ability_requests: Vec<LitResourceAbilityRequest>,
         expiration: &str,
     ) -> Result<SessionSignatures> {
         if !self.ready {
@@ -319,6 +319,8 @@ impl LitNodeClient {
             )
             .await?;
 
+        info!("Delegation auth sig: {:?}", delegation_auth_sig);
+
         // Now create session signatures for each node
         let mut session_sigs = HashMap::new();
         let now = chrono::Utc::now();
@@ -346,24 +348,6 @@ impl LitNodeClient {
             // Sign with session key
             let signature = session_keypair.sign(message.as_bytes());
 
-            // let mut sig_bytes = signature.to_bytes().to_vec();
-            // sig_bytes.push(0x00); // Add recovery ID byte
-            // let sig_hex = hex::encode(sig_bytes);
-
-            // serialize to JSON string
-            // let message = serde_json::to_string(&session_key_signed_message).unwrap();
-
-            // // Sign message with session key.
-            // let signature = signing_key.sign(message.as_bytes());
-
-            // session_sigs.push(JsonAuthSig::new(
-            //     signature.to_string(),
-            //     AUTH_SIG_DERIVED_VIA_SESSION_SIG.into(),
-            //     message,
-            //     session_pub_key.clone(),
-            //     Some(AUTH_SIG_SESSION_SIG_ALGO.into()),
-            // ));
-
             let session_sig = SessionSignature {
                 sig: signature.to_string(),
                 derived_via: "litSessionSignViaNacl".to_string(),
@@ -386,7 +370,7 @@ impl LitNodeClient {
 
     async fn create_siwe_message(
         &self,
-        resource_ability_requests: &[ResourceAbilityRequest],
+        resource_ability_requests: &[LitResourceAbilityRequest],
         _capability_auth_sigs: &[AuthSig],
         _expiration: &str,
         pkp_eth_address: &str,
@@ -398,9 +382,6 @@ impl LitNodeClient {
 
         // Fetch the latest Ethereum block hash to use as nonce
         let nonce = self.get_latest_ethereum_blockhash().await?;
-
-        // Create capabilities using siwe_recap::Capability like the reference implementation
-        let mut capabilities = Capability::<Value>::default();
 
         let mut resources = vec![];
         let mut resource_prefixes = vec![];
@@ -417,6 +398,8 @@ impl LitNodeClient {
             resources.push(resource);
             resource_prefixes.push(resource_prefix);
         }
+
+        let mut capabilities = Capability::<Value>::default();
 
         for (resource, resource_prefix) in resources.iter().zip(resource_prefixes.iter()) {
             let _ = capabilities
@@ -549,6 +532,8 @@ impl LitNodeClient {
         // same request id for all nodes
         let request_id = self.generate_request_id();
 
+        info!("auth methods: {:?}", auth_methods);
+
         for node_url in self.connected_nodes() {
             let endpoint = format!("{}/web/sign_session_key/v1", node_url);
             let request = SignSessionKeyRequest {
@@ -645,7 +630,8 @@ impl LitNodeClient {
             sig: serialized_signature,
             derived_via: "lit.bls".to_string(),
             signed_message: one_response_with_share.siwe_message.clone(),
-            address: self.to_checksum_address(pkp_eth_address)?,
+            address: self.to_checksum_address(pkp_eth_address)?[2..].to_string(),
+            algo: Some("LIT_BLS".to_string()),
         })
     }
 

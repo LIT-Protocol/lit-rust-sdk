@@ -99,14 +99,8 @@ impl EthWalletProvider {
             derived_via: "web3.eth.personal.sign".to_string(),
             signed_message: message_str,
             address: format!("0x{:x}", address),
+            algo: None,
         })
-    }
-}
-
-pub fn create_pkp_resource(resource_id: &str) -> crate::types::LitResource {
-    crate::types::LitResource {
-        resource: format!("lit-pkp://{}", resource_id),
-        resource_prefix: "lit-pkp".to_string(),
     }
 }
 

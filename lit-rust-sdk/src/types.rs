@@ -1,6 +1,6 @@
 use blsful::{Bls12381G2Impl, SignatureShare as BlsfulSignatureShare};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandshakeRequest {
@@ -65,6 +65,7 @@ pub struct AuthSig {
     #[serde(rename = "signedMessage")]
     pub signed_message: String,
     pub address: String,
+    pub algo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,17 +77,51 @@ pub struct AuthMethod {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LitResource {
-    pub resource: String,
-    #[serde(rename = "resourcePrefix")]
-    pub resource_prefix: String,
+pub struct LitResourceAbilityRequest {
+    pub resource: LitResourceAbilityRequestResource,
+    pub ability: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceAbilityRequest {
-    pub resource: LitResource,
-    pub ability: String,
+#[serde(rename_all = "camelCase")]
+pub struct LitResourceAbilityRequestResource {
+    /// The resource ID
+    pub resource: String,
+    /// The resource prefix
+    pub resource_prefix: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LitAbility {
+    // Used by top level auth sigs
+    AccessControlConditionDecryption,
+    AccessControlConditionSigning,
+    PKPSigning,
+    RateLimitIncreaseAuth,
+    LitActionExecution,
+}
+
+impl fmt::Display for LitAbility {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LitAbility::AccessControlConditionDecryption => {
+                write!(f, "access-control-condition-decryption")
+            }
+            LitAbility::AccessControlConditionSigning => {
+                write!(f, "access-control-condition-signing")
+            }
+            LitAbility::PKPSigning => write!(f, "pkp-signing"),
+            LitAbility::RateLimitIncreaseAuth => write!(f, "rate-limit-increase-auth"),
+            LitAbility::LitActionExecution => write!(f, "lit-action-execution"),
+        }
+    }
+}
+
+// USER DEFINED
+const LIT_RESOURCE_PREFIX_ACC: &str = "lit-accesscontrolcondition";
+const LIT_RESOURCE_PREFIX_PKP: &str = "lit-pkp";
+const LIT_RESOURCE_PREFIX_RLI: &str = "lit-ratelimitincrease";
+const LIT_RESOURCE_PREFIX_LA: &str = "lit-litaction";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionSignature {
@@ -130,7 +165,7 @@ pub struct CapacityDelegationRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SessionKeySignedMessage {
     pub session_key: String,
-    pub resource_ability_requests: Vec<ResourceAbilityRequest>,
+    pub resource_ability_requests: Vec<LitResourceAbilityRequest>,
     pub capabilities: Vec<AuthSig>,
     pub issued_at: String,
     pub expiration: String,
