@@ -650,15 +650,41 @@ impl LitNodeClient {
         let request_id = self.generate_request_id();
         info!("Executing Lit Action with request ID: {}", request_id);
 
-        // Get node promises
-        let mut node_responses = Vec::new();
-        let min_responses = self.connected_nodes().len() * 2 / 3; // Require 2/3 responses
+        // Create futures for all node requests
+        let node_urls = self.connected_nodes();
+        let min_responses = node_urls.len() * 2 / 3; // Require 2/3 responses
+        
+        let http_client = &self.http_client;
+        let connect_timeout = self.config.connect_timeout;
+        
+        // Create a future for each node request
+        let futures: Vec<_> = node_urls
+            .iter()
+            .map(|node_url| {
+                let node_url = node_url.clone();
+                let params = params.clone();
+                let request_id = request_id.clone();
+                async move {
+                    let result = Self::execute_js_node_request(
+                        http_client,
+                        connect_timeout,
+                        &node_url,
+                        &params,
+                        &request_id,
+                    )
+                    .await;
+                    (node_url, result)
+                }
+            })
+            .collect();
 
-        for node_url in self.connected_nodes() {
-            match self
-                .execute_js_node_request(&node_url, &params, &request_id)
-                .await
-            {
+        // Execute all requests in parallel
+        let results = futures::future::join_all(futures).await;
+        
+        // Collect successful responses
+        let mut node_responses = Vec::new();
+        for (node_url, result) in results {
+            match result {
                 Ok(response) => {
                     info!("Got response from node: {}", node_url);
                     node_responses.push(response);
@@ -719,7 +745,8 @@ impl LitNodeClient {
     }
 
     async fn execute_js_node_request(
-        &self,
+        http_client: &Client,
+        connect_timeout: std::time::Duration,
         node_url: &str,
         params: &ExecuteJsParams,
         request_id: &str,
@@ -727,7 +754,7 @@ impl LitNodeClient {
         let endpoint = format!("{}/web/execute", node_url);
 
         // Get the session signature for this specific node URL
-        let session_sig = self.get_session_sig_by_url(&params.session_sigs, node_url)?;
+        let session_sig = Self::get_session_sig_by_url(&params.session_sigs, node_url)?;
 
         // Prepare the request body based on the JS SDK implementation
         let mut request_body = serde_json::json!({
@@ -756,8 +783,8 @@ impl LitNodeClient {
         debug!("Sending execute request to {}: {}", endpoint, request_body);
 
         let response = timeout(
-            self.config.connect_timeout,
-            self.http_client
+            connect_timeout,
+            http_client
                 .post(&endpoint)
                 .header("X-Request-Id", request_id)
                 .header("Content-Type", "application/json")
@@ -810,7 +837,6 @@ impl LitNodeClient {
     }
 
     fn get_session_sig_by_url(
-        &self,
         session_sigs: &SessionSignatures,
         url: &str,
     ) -> Result<SessionSignature> {

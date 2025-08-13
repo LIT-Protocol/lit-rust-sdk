@@ -23,6 +23,7 @@ siwe = "0.5"
 siwe-recap = { git = "https://github.com/spruceid/siwe-recap" }
 blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
 elliptic-curve = "0.13"
+futures = "0.3"
 # lit_node = { path ="../lit-assets/rust/lit-node" }
 
 [dev-dependencies]
