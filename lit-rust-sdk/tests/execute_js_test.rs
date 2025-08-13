@@ -104,9 +104,9 @@ async fn test_execute_js_hello_world() {
     };
     println!("🔑 Auth method: {:?}", auth_method);
 
-    // Create capacity delegation auth sig
-    println!("🔄 Creating capacity delegation auth sig...");
-    let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // TODO: Create capacity delegation auth sig
+    // println!("🔄 Creating capacity delegation auth sig...");
+    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
     // let capacity_auth_sig = match client
     //     .create_capacity_delegation_auth_sig(
     //         &wallet,
@@ -239,13 +239,13 @@ async fn test_execute_js_signing() {
         }
     };
 
-    let pkp_token_id = match std::env::var("PKP_TOKEN_ID") {
-        Ok(id) => id,
-        Err(_) => {
-            println!("Skipping signing test - PKP_TOKEN_ID not set");
-            return;
-        }
-    };
+    // let pkp_token_id = match std::env::var("PKP_TOKEN_ID") {
+    //     Ok(id) => id,
+    //     Err(_) => {
+    //         println!("Skipping signing test - PKP_TOKEN_ID not set");
+    //         return;
+    //     }
+    // };
 
     let pkp_eth_address = match std::env::var("PKP_ETH_ADDRESS") {
         Ok(addr) => addr,

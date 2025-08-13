@@ -117,11 +117,12 @@ impl fmt::Display for LitAbility {
     }
 }
 
+// TODO: use these with helpers for creating resource ability requests
 // USER DEFINED
-const LIT_RESOURCE_PREFIX_ACC: &str = "lit-accesscontrolcondition";
-const LIT_RESOURCE_PREFIX_PKP: &str = "lit-pkp";
-const LIT_RESOURCE_PREFIX_RLI: &str = "lit-ratelimitincrease";
-const LIT_RESOURCE_PREFIX_LA: &str = "lit-litaction";
+// const LIT_RESOURCE_PREFIX_ACC: &str = "lit-accesscontrolcondition";
+// const LIT_RESOURCE_PREFIX_PKP: &str = "lit-pkp";
+// const LIT_RESOURCE_PREFIX_RLI: &str = "lit-ratelimitincrease";
+// const LIT_RESOURCE_PREFIX_LA: &str = "lit-litaction";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionSignature {

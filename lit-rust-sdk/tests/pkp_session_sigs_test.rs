@@ -69,21 +69,21 @@ async fn test_get_pkp_session_sigs() {
         }
     };
 
-    // Create capacity delegation auth sig
-    println!("🔄 Creating capacity delegation auth sig...");
-    let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
-    let capacity_auth_sig = match client
-        .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "1")
-        .await
-    {
-        Ok(sig) => {
-            println!("✅ Created capacity delegation auth sig");
-            sig
-        }
-        Err(e) => {
-            panic!("Failed to create capacity delegation auth sig: {}", e);
-        }
-    };
+    // TODO: Create capacity delegation auth sig
+    // println!("🔄 Creating capacity delegation auth sig...");
+    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // let capacity_auth_sig = match client
+    //     .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "1")
+    //     .await
+    // {
+    //     Ok(sig) => {
+    //         println!("✅ Created capacity delegation auth sig");
+    //         sig
+    //     }
+    //     Err(e) => {
+    //         panic!("Failed to create capacity delegation auth sig: {}", e);
+    //     }
+    // };
 
     // Create resource ability requests
     // let resource_ability_requests = vec![ResourceAbilityRequest {
