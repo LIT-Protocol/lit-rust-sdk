@@ -1095,11 +1095,25 @@ impl LitNodeClient {
         // Create the full signature hex (r + s with 0x prefix)
         let signature_hex = format!("0x{}{}", r_hex, s_hex);
         
-        // Remove 0x prefix from public key if present and ensure proper format
-        let public_key_clean = first_share.public_key
-            .strip_prefix("0x")
-            .unwrap_or(&first_share.public_key)
-            .to_string();
+        // Parse JSON-encoded fields from the node response
+        let public_key_clean = match serde_json::from_str::<String>(&first_share.public_key) {
+            Ok(pk) => pk.strip_prefix("0x").unwrap_or(&pk).to_string(),
+            Err(_) => {
+                // If parsing fails, use the raw value and strip 0x prefix
+                first_share.public_key
+                    .strip_prefix("0x")
+                    .unwrap_or(&first_share.public_key)
+                    .to_string()
+            }
+        };
+        
+        let data_signed_clean = match serde_json::from_str::<String>(&first_share.data_signed) {
+            Ok(ds) => ds,
+            Err(_) => {
+                // If parsing fails, use the raw value
+                first_share.data_signed.clone()
+            }
+        };
         
         info!(
             "Converted signature for {}: r={}, s={}, recid={}, verified=true", 
@@ -1115,7 +1129,7 @@ impl LitNodeClient {
             "recid": recid,
             "signature": signature_hex,
             "publicKey": public_key_clean,
-            "dataSigned": first_share.data_signed.clone(),
+            "dataSigned": data_signed_clean,
         }))
     }
 }
