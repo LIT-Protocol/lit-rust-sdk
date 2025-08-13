@@ -208,7 +208,7 @@ impl super::LitNodeClient {
                 let sig_name = signed_data.sig_name.clone();
                 signatures_by_name
                     .entry(sig_name)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(signed_data.clone());
             }
         }
@@ -288,7 +288,7 @@ impl super::LitNodeClient {
                                     was_flipped,
                                     &pub_key,
                                     &hash,
-                                    &first_share,
+                                    first_share,
                                 )?;
                                 combined_signatures.insert(sig_name, sig_json);
                             } else {
