@@ -199,11 +199,23 @@ pub struct ExecuteJsResponse {
 pub struct NodeShare {
     pub success: bool,
     #[serde(rename = "signedData")]
-    pub signed_data: HashMap<String, serde_json::Value>,
+    pub signed_data: HashMap<String, SignedData>,
     #[serde(rename = "claimData")]
     pub claim_data: HashMap<String, serde_json::Value>,
     pub response: serde_json::Value,
     pub logs: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignedData {
+    pub sig_type: String,
+    pub data_signed: String,
+    pub signature_share: String,
+    pub share_index: u32,
+    pub big_r: String,
+    pub public_key: String,
+    pub sig_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
