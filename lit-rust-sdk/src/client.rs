@@ -336,7 +336,7 @@ impl LitNodeClient {
                 capabilities: capabilities.clone(),
                 issued_at: issued_at.clone(),
                 expiration: expiration.to_string(),
-                node_address: node_url.clone(),
+                node_address: node_url.to_owned(),
             };
 
             // Serialize to JSON
@@ -346,26 +346,29 @@ impl LitNodeClient {
             // Sign with session key
             let signature = session_keypair.sign(message.as_bytes());
 
-            // Convert signature to hex and add a recovery ID byte (65 bytes = 130 hex chars)
-            // Ed25519 signatures don't have recovery IDs, so we append 0x00
-            let mut sig_bytes = signature.to_bytes().to_vec();
-            sig_bytes.push(0x00); // Add recovery ID byte
-            let sig_hex = hex::encode(sig_bytes);
+            // let mut sig_bytes = signature.to_bytes().to_vec();
+            // sig_bytes.push(0x00); // Add recovery ID byte
+            // let sig_hex = hex::encode(sig_bytes);
 
-            // Create session signature
-            // For session signatures, use the session public key as address
-            // But truncate to 20 bytes (40 hex chars) to match Ethereum address format
-            let session_address = if session_public_key.len() > 40 {
-                session_public_key[..40].to_string()
-            } else {
-                session_public_key.clone()
-            };
+            // serialize to JSON string
+            // let message = serde_json::to_string(&session_key_signed_message).unwrap();
+
+            // // Sign message with session key.
+            // let signature = signing_key.sign(message.as_bytes());
+
+            // session_sigs.push(JsonAuthSig::new(
+            //     signature.to_string(),
+            //     AUTH_SIG_DERIVED_VIA_SESSION_SIG.into(),
+            //     message,
+            //     session_pub_key.clone(),
+            //     Some(AUTH_SIG_SESSION_SIG_ALGO.into()),
+            // ));
 
             let session_sig = SessionSignature {
-                sig: sig_hex,
-                derived_via: "lit-session-sig".to_string(),
+                sig: signature.to_string(),
+                derived_via: "litSessionSignViaNacl".to_string(),
                 signed_message: message,
-                address: session_address,
+                address: session_public_key.clone(),
                 algo: Some("ed25519".to_string()),
             };
 

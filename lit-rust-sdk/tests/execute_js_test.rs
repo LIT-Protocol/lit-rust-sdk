@@ -1,7 +1,8 @@
 use ethers::signers::Signer;
 use lit_rust_sdk::{
     auth::{create_pkp_resource, load_wallet_from_env, EthWalletProvider},
-    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig, LitResource, ResourceAbilityRequest,
+    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig, LitResource,
+    ResourceAbilityRequest,
 };
 use std::time::Duration;
 
@@ -101,6 +102,7 @@ async fn test_execute_js_hello_world() {
             return;
         }
     };
+    println!("🔑 Auth method: {:?}", auth_method);
 
     // Create capacity delegation auth sig
     println!("🔄 Creating capacity delegation auth sig...");
@@ -144,7 +146,7 @@ async fn test_execute_js_hello_world() {
 
     // Set expiration to 10 minutes from now
     let expiration = chrono::Utc::now() + chrono::Duration::minutes(10);
-    let expiration_str = expiration.to_rfc3339();
+    let expiration_str = expiration.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
     // Get PKP session signatures
     println!("🔄 Getting PKP session signatures...");
@@ -152,7 +154,7 @@ async fn test_execute_js_hello_world() {
         .get_pkp_session_sigs(
             &pkp_public_key,
             &pkp_eth_address,
-            vec![capacity_auth_sig],
+            vec![],
             vec![auth_method],
             resource_ability_requests,
             &expiration_str,
@@ -197,7 +199,10 @@ async fn test_execute_js_hello_world() {
             if let Some(response_obj) = response.response.as_object() {
                 if let Some(response_msg) = response_obj.get("response") {
                     assert!(
-                        response_msg.as_str().unwrap_or("").contains("Hello from Lit Action"),
+                        response_msg
+                            .as_str()
+                            .unwrap_or("")
+                            .contains("Hello from Lit Action"),
                         "Response should contain expected message"
                     );
                 }
@@ -259,7 +264,8 @@ async fn test_execute_js_signing() {
     };
 
     // Lit Action that does signing (similar to the reference implementation)
-    let signing_lit_action = format!(r#"
+    let signing_lit_action = format!(
+        r#"
 const go = async () => {{
   console.log("Starting signing Lit Action");
   
@@ -277,7 +283,9 @@ const go = async () => {{
 }};
 
 go();
-"#, pkp_public_key);
+"#,
+        pkp_public_key
+    );
 
     // Create client configuration
     let config = LitNodeClientConfig {
@@ -302,12 +310,7 @@ go();
     // Create capacity delegation auth sig
     let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
     let capacity_auth_sig = client
-        .create_capacity_delegation_auth_sig(
-            &wallet,
-            &pkp_token_id,
-            &delegatee_addresses,
-            "10",
-        )
+        .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "10")
         .await
         .expect("Failed to create capacity delegation");
 
@@ -356,12 +359,12 @@ go();
             println!("🎉 Signing Lit Action executed successfully!");
             println!("📤 Response: {:?}", response.response);
             println!("📜 Logs: {}", response.logs);
-            
+
             // Check if we got signatures back
             if let Some(signatures) = &response.signatures {
                 println!("🔐 Got signatures: {:?}", signatures);
             }
-            
+
             println!("✅ Signing test completed!");
         }
         Err(e) => {

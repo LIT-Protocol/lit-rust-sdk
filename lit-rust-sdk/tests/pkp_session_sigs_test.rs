@@ -45,13 +45,13 @@ async fn test_get_pkp_session_sigs() {
     }
 
     // Load real PKP from environment
-    let pkp_public_key = std::env::var("PKP_PUBLIC_KEY")
-        .expect("PKP_PUBLIC_KEY environment variable not set");
-    let pkp_token_id = std::env::var("PKP_TOKEN_ID")
-        .expect("PKP_TOKEN_ID environment variable not set");
-    let pkp_eth_address = std::env::var("PKP_ETH_ADDRESS")
-        .expect("PKP_ETH_ADDRESS environment variable not set");
-    
+    let pkp_public_key =
+        std::env::var("PKP_PUBLIC_KEY").expect("PKP_PUBLIC_KEY environment variable not set");
+    let pkp_token_id =
+        std::env::var("PKP_TOKEN_ID").expect("PKP_TOKEN_ID environment variable not set");
+    let pkp_eth_address =
+        std::env::var("PKP_ETH_ADDRESS").expect("PKP_ETH_ADDRESS environment variable not set");
+
     println!("Using PKP public key: {}", pkp_public_key);
     println!("Using PKP token ID: {}", pkp_token_id);
     println!("Using PKP ETH address: {}", pkp_eth_address);
@@ -72,12 +72,7 @@ async fn test_get_pkp_session_sigs() {
     println!("🔄 Creating capacity delegation auth sig...");
     let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
     let capacity_auth_sig = match client
-        .create_capacity_delegation_auth_sig(
-            &wallet,
-            &pkp_token_id,
-            &delegatee_addresses,
-            "1",
-        )
+        .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "1")
         .await
     {
         Ok(sig) => {
@@ -105,7 +100,7 @@ async fn test_get_pkp_session_sigs() {
         .get_pkp_session_sigs(
             &pkp_public_key,
             &pkp_eth_address,
-            vec![capacity_auth_sig],
+            vec![],
             vec![auth_method],
             resource_ability_requests,
             &expiration_str,
