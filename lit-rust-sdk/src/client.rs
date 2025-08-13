@@ -10,11 +10,11 @@ use crate::{
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use blsful::{Bls12381G2Impl, Signature, SignatureShare};
-use cait_sith::combine_signature_shares;
+use elliptic_curve::{scalar::IsHigh, subtle::ConditionallySelectable, PrimeField};
 use dashmap::DashMap;
 use ed25519_dalek::Signer;
 use ethers::types::Address;
-use k256::{Scalar, Secp256k1, ecdsa::{RecoveryId, Signature as EcdsaSignature}};
+use k256::{Scalar, AffinePoint, ProjectivePoint};
 use rand::Rng;
 use reqwest::Client;
 use serde_json::Value;
@@ -955,44 +955,25 @@ impl LitNodeClient {
                 if let (Some(pub_key), Some(big_r), Some(hash)) =
                     (public_key, presignature_big_r, msg_hash)
                 {
-                    // Use cait-sith to combine the signature shares
-                    let combined_sig =
-                        combine_signature_shares::<Secp256k1>(parsed_shares, pub_key, big_r, hash)
-                            .await;
-
-                    match combined_sig {
-                        Ok(signature) => {
-                            // Verify the signature
-                            if signature.verify(&pub_key, &hash) {
+                    // Use elliptic_curve/k256 to combine the signature shares
+                    match self.combine_signature_shares_k256(parsed_shares, big_r) {
+                        Ok((s, was_flipped)) => {
+                            // Verify the signature using ECDSA verification
+                            if self.verify_signature(&pub_key, &hash, &big_r, &s) {
                                 info!(
                                     "Successfully combined and verified signature for {}",
                                     sig_name
                                 );
 
-                                // Convert the signature to the expected format
-                                use serde_json::json;
-                                
                                 // Convert to proper SigResponse format matching JS SDK
-                                let sig_json = match self.convert_full_signature_to_response(
-                                    &signature, 
+                                let sig_json = self.convert_signature_to_response(
+                                    &big_r, 
+                                    &s, 
+                                    was_flipped,
                                     &pub_key, 
                                     &hash, 
-                                    &big_r,
                                     &first_share
-                                ) {
-                                    Ok(response) => response,
-                                    Err(e) => {
-                                        warn!("Failed to convert signature to response format: {}", e);
-                                        // Fallback format
-                                        json!({
-                                            "verified": true,
-                                            "combined": true,
-                                            "publicKey": first_share.public_key.clone(),
-                                            "dataSigned": first_share.data_signed.clone(),
-                                            "error": "Failed to convert signature format"
-                                        })
-                                    }
-                                };
+                                )?;
 
                                 combined_signatures.insert(sig_name, sig_json);
                             } else {
@@ -1022,35 +1003,96 @@ impl LitNodeClient {
         }
     }
 
-    fn convert_full_signature_to_response(
+    /// Combine signature shares using k256/elliptic_curve, following JS SDK implementation
+    fn combine_signature_shares_k256(
         &self,
-        signature: &cait_sith::FullSignature<Secp256k1>,
-        public_key: &k256::AffinePoint,
+        signature_shares: Vec<Scalar>,
+        _big_r: AffinePoint,
+    ) -> Result<(Scalar, bool)> {
+        if signature_shares.is_empty() {
+            return Err(Error::Other("No signature shares provided".to_string()));
+        }
+        
+        // Sum all signature shares (equivalent to JS SDK's sum_scalars)
+        let mut s: Scalar = signature_shares.into_iter().sum();
+        
+        // Apply low-s rule (normalize s to lower half of curve order)
+        let was_flipped = s.is_high().into();
+        s.conditional_assign(&(-s), s.is_high());
+        
+        Ok((s, was_flipped))
+    }
+    
+    /// Verify ECDSA signature using k256
+    fn verify_signature(
+        &self,
+        public_key: &AffinePoint,
         msg_hash: &Scalar,
-        big_r: &k256::AffinePoint,
+        big_r: &AffinePoint,
+        s: &Scalar,
+    ) -> bool {
+        use elliptic_curve::ops::Reduce;
+        use k256::elliptic_curve::point::AffineCoordinates;
+        
+        // Extract r coordinate from big_r point
+        let r = <Scalar as Reduce<k256::U256>>::reduce_bytes(&big_r.x());
+        
+        if r.is_zero().into() || s.is_zero().into() {
+            return false;
+        }
+        
+        // Compute s_inv
+        let s_inv = match Option::<Scalar>::from(s.invert()) {
+            Some(inv) => inv,
+            None => return false,
+        };
+        
+        if msg_hash.is_zero().into() {
+            return false;
+        }
+        
+        // Verify: R = (z/s)G + (r/s)Y
+        let public_key_proj = ProjectivePoint::from(*public_key);
+        let generator = ProjectivePoint::GENERATOR;
+        
+        let reproduced = (generator * (*msg_hash * s_inv)) + (public_key_proj * (r * s_inv));
+        let reproduced_affine = reproduced.to_affine();
+        let reproduced_r = <Scalar as Reduce<k256::U256>>::reduce_bytes(&reproduced_affine.x());
+        
+        reproduced_r == r
+    }
+    
+    /// Convert signature to JS SDK format
+    fn convert_signature_to_response(
+        &self,
+        big_r: &AffinePoint,
+        s: &Scalar,
+        was_flipped: bool,
+        _public_key: &AffinePoint,
+        _msg_hash: &Scalar,
         first_share: &SignedData,
     ) -> Result<serde_json::Value> {
+        use elliptic_curve::ops::Reduce;
         use k256::elliptic_curve::point::AffineCoordinates;
         
         // Extract r from big_r point
-        let r_bytes = big_r.x();
+        let r = <Scalar as Reduce<k256::U256>>::reduce_bytes(&big_r.x());
+        let r_bytes = r.to_repr();
         let r_hex = hex::encode(r_bytes);
         
-        // We can't easily extract s from FullSignature without internal access
-        // For now, we'll compute a placeholder that indicates successful combination
-        // In a production system, you'd need to modify cait-sith or use their conversion utilities
-        let s_hex = format!("{:064x}", 1u64); // Placeholder s value
+        // Convert s to hex
+        let s_bytes = s.to_repr();
+        let s_hex = hex::encode(s_bytes);
         
-        // Try different recovery IDs to find the correct one
-        let mut recid = 0u8;
-        for candidate_recid in 0..4 {
-            // Create a test signature with our r, s, and candidate recovery ID
-            // This is simplified - a full implementation would verify against the actual signature
-            recid = candidate_recid;
-            break; // For now, just use 0
+        // Calculate recovery ID (v)
+        let mut recid = if big_r.y_is_odd().into() { 1u8 } else { 0u8 };
+        
+        // Flip recovery ID if s was normalized (low-s rule)
+        if was_flipped {
+            recid = 1 - recid;
         }
         
-        // Create the full signature hex (r + s)
+        // Create the full signature hex (r + s with 0x prefix)
         let signature_hex = format!("0x{}{}", r_hex, s_hex);
         
         // Remove 0x prefix from public key if present and ensure proper format
@@ -1060,9 +1102,11 @@ impl LitNodeClient {
             .to_string();
         
         info!(
-            "Converted signature for {}: r={}, verified=true", 
+            "Converted signature for {}: r={}, s={}, recid={}, verified=true", 
             first_share.sig_name, 
-            &r_hex[..16] // Show first 16 chars
+            &r_hex[..16], // Show first 16 chars of r
+            &s_hex[..16], // Show first 16 chars of s
+            recid
         );
         
         Ok(serde_json::json!({

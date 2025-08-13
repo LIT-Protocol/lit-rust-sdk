@@ -25,7 +25,6 @@ blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
 elliptic-curve = "0.13"
 futures = "0.3"
 k256 = { version = "0.13", features = ["serde", "ecdsa", "arithmetic"] }
-cait-sith = { git = "https://github.com/lit-protocol/cait-sith", features = ["k256"] }
 # lit_node = { path ="../lit-assets/rust/lit-node" }
 
 [dev-dependencies]
