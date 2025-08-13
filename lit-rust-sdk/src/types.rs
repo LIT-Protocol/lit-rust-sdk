@@ -1,3 +1,4 @@
+use blsful::{Bls12381G2Impl, SignatureShare as BlsfulSignatureShare};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -168,4 +169,16 @@ pub struct NodeShare {
     pub claim_data: HashMap<String, serde_json::Value>,
     pub response: serde_json::Value,
     pub logs: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonSignSessionKeyResponseV1 {
+    pub result: String,
+    pub signature_share: BlsfulSignatureShare<Bls12381G2Impl>,
+    pub share_index: u32,
+    pub curve_type: String,
+    pub siwe_message: String,
+    pub data_signed: String,
+    pub bls_root_pubkey: String,
 }
