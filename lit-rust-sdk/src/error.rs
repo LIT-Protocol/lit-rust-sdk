@@ -1,3 +1,4 @@
+use crate::bls;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -25,6 +26,12 @@ pub enum Error {
 
     #[error("Other error: {0}")]
     Other(String),
+
+    #[error("Bls error: {0}")]
+    BlsError(#[from] blsful::BlsError),
+
+    #[error("Bare serialization error: {0}")]
+    BareError(#[from] serde_bare::error::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
