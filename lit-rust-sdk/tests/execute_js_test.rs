@@ -216,152 +216,147 @@ async fn test_execute_js_hello_world() {
     }
 }
 
-// #[tokio::test]
-// async fn test_execute_js_signing() {
-//     // Initialize tracing for debugging
-//     let _ = tracing_subscriber::fmt().try_init();
+#[tokio::test]
+async fn test_execute_js_signing() {
+    // Initialize tracing for debugging
+    let _ = tracing_subscriber::fmt().try_init();
 
-//     // Load wallet from environment
-//     let wallet = match load_wallet_from_env() {
-//         Ok(w) => w,
-//         Err(_) => {
-//             println!("Skipping signing test - ETHEREUM_PRIVATE_KEY not set");
-//             return;
-//         }
-//     };
+    // Load wallet from environment
+    let wallet = match load_wallet_from_env() {
+        Ok(w) => w,
+        Err(_) => {
+            println!("Skipping signing test - ETHEREUM_PRIVATE_KEY not set");
+            return;
+        }
+    };
 
-//     // Load PKP environment variables
-//     let pkp_public_key = match std::env::var("PKP_PUBLIC_KEY") {
-//         Ok(key) => key,
-//         Err(_) => {
-//             println!("Skipping signing test - PKP_PUBLIC_KEY not set");
-//             return;
-//         }
-//     };
+    // Load PKP environment variables
+    let pkp_public_key = match std::env::var("PKP_PUBLIC_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            println!("Skipping signing test - PKP_PUBLIC_KEY not set");
+            return;
+        }
+    };
 
-//     let pkp_token_id = match std::env::var("PKP_TOKEN_ID") {
-//         Ok(id) => id,
-//         Err(_) => {
-//             println!("Skipping signing test - PKP_TOKEN_ID not set");
-//             return;
-//         }
-//     };
+    let pkp_token_id = match std::env::var("PKP_TOKEN_ID") {
+        Ok(id) => id,
+        Err(_) => {
+            println!("Skipping signing test - PKP_TOKEN_ID not set");
+            return;
+        }
+    };
 
-//     let pkp_eth_address = match std::env::var("PKP_ETH_ADDRESS") {
-//         Ok(addr) => addr,
-//         Err(_) => {
-//             println!("Skipping signing test - PKP_ETH_ADDRESS not set");
-//             return;
-//         }
-//     };
+    let pkp_eth_address = match std::env::var("PKP_ETH_ADDRESS") {
+        Ok(addr) => addr,
+        Err(_) => {
+            println!("Skipping signing test - PKP_ETH_ADDRESS not set");
+            return;
+        }
+    };
 
-//     // Lit Action that does signing (similar to the reference implementation)
-//     let signing_lit_action = format!(
-//         r#"
-// const go = async () => {{
-//   console.log("Starting signing Lit Action");
+    // Lit Action that does signing (similar to the reference implementation)
+    let signing_lit_action = format!(
+        r#"
+const go = async () => {{
+  console.log("Starting signing Lit Action");
 
-//   // This requests a signature share from the Lit Node
-//   // the signature share will be automatically returned in the response from the node
-//   // and combined into a full signature by the SDK for you to use on the client
-//   const utf8Encode = new TextEncoder();
-//   const toSign = utf8Encode.encode('This message is exactly 32 bytes');
-//   const publicKey = "{}";
-//   const sigName = "sig1";
+  // This requests a signature share from the Lit Node
+  // the signature share will be automatically returned in the response from the node
+  // and combined into a full signature by the SDK for you to use on the client
+  const utf8Encode = new TextEncoder();
+  const toSign = utf8Encode.encode('This message is exactly 32 bytes');
+  const publicKey = "{}";
+  const sigName = "sig1";
 
-//   const sigShare = await Lit.Actions.signEcdsa({{ toSign, publicKey, sigName }});
+  const sigShare = await Lit.Actions.signEcdsa({{ toSign, publicKey, sigName }});
 
-//   console.log("Signature generation completed");
-// }};
+  console.log("Signature generation completed");
+}};
 
-// go();
-// "#,
-//         pkp_public_key
-//     );
+go();
+"#,
+        pkp_public_key
+    );
 
-//     // Create client configuration
-//     let config = LitNodeClientConfig {
-//         lit_network: LitNetwork::DatilDev,
-//         alert_when_unauthorized: true,
-//         min_node_count: Some(2),
-//         debug: true,
-//         connect_timeout: Duration::from_secs(30),
-//         check_node_attestation: false,
-//         rpc_url: None,
-//     };
+    println!("signing lit action{}", signing_lit_action);
 
-//     // Create and connect client
-//     let mut client = LitNodeClient::new(config);
-//     client.connect().await.expect("Failed to connect");
+    // Create client configuration
+    let config = LitNodeClientConfig {
+        lit_network: LitNetwork::DatilDev,
+        alert_when_unauthorized: true,
+        min_node_count: Some(2),
+        debug: true,
+        connect_timeout: Duration::from_secs(30),
+        check_node_attestation: false,
+        rpc_url: None,
+    };
 
-//     // Create auth method
-//     let auth_method = EthWalletProvider::authenticate(&wallet, &client)
-//         .await
-//         .expect("Failed to create auth method");
+    // Create and connect client
+    let mut client = LitNodeClient::new(config);
+    client.connect().await.expect("Failed to connect");
 
-//     // Create capacity delegation auth sig
-//     let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
-//     let capacity_auth_sig = client
-//         .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "10")
-//         .await
-//         .expect("Failed to create capacity delegation");
+    // Create auth method
+    let auth_method = EthWalletProvider::authenticate(&wallet, &client)
+        .await
+        .expect("Failed to create auth method");
 
-//     // Create resource ability requests for signing
-//     let resource_ability_requests = vec![
-//         ResourceAbilityRequest {
-//             resource: create_pkp_resource("*"),
-//             ability: "lit-pkp-signing".to_string(),
-//         },
-//         ResourceAbilityRequest {
-//             resource: LitResource {
-//                 resource: "*".to_string(),
-//                 resource_prefix: "lit-litaction".to_string(),
-//             },
-//             ability: "lit-action-execution".to_string(),
-//         },
-//     ];
+    // // Create capacity delegation auth sig
+    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // let capacity_auth_sig = client
+    //     .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "10")
+    //     .await
+    //     .expect("Failed to create capacity delegation");
 
-//     let expiration = chrono::Utc::now() + chrono::Duration::minutes(10);
-//     let expiration_str = expiration.to_rfc3339();
+    // Create resource ability requests for signing
+    let resource_ability_requests = vec![LitResourceAbilityRequest {
+        resource: LitResourceAbilityRequestResource {
+            resource: "*".to_string(),
+            resource_prefix: "lit-litaction".to_string(),
+        },
+        ability: LitAbility::LitActionExecution.to_string(),
+    }];
 
-//     // Get session signatures
-//     let session_sigs = client
-//         .get_pkp_session_sigs(
-//             &pkp_public_key,
-//             &pkp_eth_address,
-//             vec![capacity_auth_sig],
-//             vec![auth_method],
-//             resource_ability_requests,
-//             &expiration_str,
-//         )
-//         .await
-//         .expect("Failed to get session signatures");
+    let expiration = chrono::Utc::now() + chrono::Duration::minutes(10);
+    let expiration_str = expiration.to_rfc3339();
 
-//     // Execute the signing Lit Action
-//     let execute_params = ExecuteJsParams {
-//         code: Some(signing_lit_action),
-//         ipfs_id: None,
-//         session_sigs,
-//         auth_methods: None,
-//         js_params: None,
-//     };
+    // Get session signatures
+    let session_sigs = client
+        .get_pkp_session_sigs(
+            &pkp_public_key,
+            &pkp_eth_address,
+            vec![],
+            vec![auth_method],
+            resource_ability_requests,
+            &expiration_str,
+        )
+        .await
+        .expect("Failed to get session signatures");
 
-//     match client.execute_js(execute_params).await {
-//         Ok(response) => {
-//             println!("🎉 Signing Lit Action executed successfully!");
-//             println!("📤 Response: {:?}", response.response);
-//             println!("📜 Logs: {}", response.logs);
+    // Execute the signing Lit Action
+    let execute_params = ExecuteJsParams {
+        code: Some(signing_lit_action),
+        ipfs_id: None,
+        session_sigs,
+        auth_methods: None,
+        js_params: None,
+    };
 
-//             // Check if we got signatures back
-//             if let Some(signatures) = &response.signatures {
-//                 println!("🔐 Got signatures: {:?}", signatures);
-//             }
+    match client.execute_js(execute_params).await {
+        Ok(response) => {
+            println!("🎉 Signing Lit Action executed successfully!");
+            println!("📤 Response: {:?}", response.response);
+            println!("📜 Logs: {}", response.logs);
 
-//             println!("✅ Signing test completed!");
-//         }
-//         Err(e) => {
-//             println!("❌ Signing Lit Action execution failed: {}", e);
-//             println!("This test requires valid PKP credentials and capacity delegation setup");
-//         }
-//     }
-// }
+            // Check if we got signatures back
+            if let Some(signatures) = &response.signatures {
+                println!("🔐 Got signatures: {:?}", signatures);
+            }
+
+            println!("✅ Signing test completed!");
+        }
+        Err(e) => {
+            panic!("❌ Signing Lit Action execution failed: {}", e);
+        }
+    }
+}

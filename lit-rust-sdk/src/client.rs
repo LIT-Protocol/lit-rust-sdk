@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use blsful::{inner_types::GroupEncoding, Bls12381G2Impl, Signature, SignatureShare};
+use blsful::{Bls12381G2Impl, Signature, SignatureShare};
 use dashmap::DashMap;
 use ed25519_dalek::Signer;
 use ethers::types::Address;
@@ -630,7 +630,7 @@ impl LitNodeClient {
             sig: serialized_signature,
             derived_via: "lit.bls".to_string(),
             signed_message: one_response_with_share.siwe_message.clone(),
-            address: self.to_checksum_address(pkp_eth_address)?[2..].to_string(),
+            address: self.to_checksum_address(pkp_eth_address)?,
             algo: Some("LIT_BLS".to_string()),
         })
     }
