@@ -2,22 +2,22 @@ use crate::{
     config::{LitNetwork, LitNodeClientConfig},
     error::{Error, Result},
     types::{
-        AuthMethod, AuthSig, ConnectionState, ExecuteJsParams, ExecuteJsResponse, HandshakeRequest, HandshakeResponse,
-        NodeConnectionInfo, NodeShare, ResourceAbilityRequest, SessionKeySignedMessage, SessionSignature,
-        SessionSignatures, SignSessionKeyRequest,
+        AuthMethod, AuthSig, ConnectionState, ExecuteJsParams, ExecuteJsResponse, HandshakeRequest,
+        HandshakeResponse, NodeConnectionInfo, NodeShare, ResourceAbilityRequest,
+        SessionKeySignedMessage, SessionSignature, SessionSignatures, SignSessionKeyRequest,
     },
 };
+use base64;
 use dashmap::DashMap;
 use ed25519_dalek::Signer;
 use ethers::types::Address;
 use rand::Rng;
 use reqwest::Client;
+use serde_json::Value;
 use siwe::Message;
 use siwe_recap::Capability;
-use serde_json::Value;
 use std::ops::{Add, Sub};
 use std::{collections::HashMap, sync::Arc};
-use base64;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
@@ -403,7 +403,8 @@ impl LitNodeClient {
         }
 
         for (resource, resource_prefix) in resources.iter().zip(resource_prefixes.iter()) {
-            let _ = capabilities.with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
+            let _ = capabilities
+                .with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
         }
 
         // Parse the ETH address
@@ -416,7 +417,7 @@ impl LitNodeClient {
         let now = chrono::Utc::now();
         let siwe_issued_at = now.sub(chrono::Duration::days(1));
         let siwe_expiration_time = now.add(chrono::Duration::days(7));
-        
+
         let siwe_message = capabilities
             .build_message(Message {
                 domain: "localhost:3000".parse().unwrap(),
@@ -607,7 +608,9 @@ impl LitNodeClient {
         }
 
         if params.code.is_none() && params.ipfs_id.is_none() {
-            return Err(Error::Other("Either code or ipfsId must be provided".to_string()));
+            return Err(Error::Other(
+                "Either code or ipfsId must be provided".to_string(),
+            ));
         }
 
         // Generate request ID for this execution
@@ -619,7 +622,10 @@ impl LitNodeClient {
         let min_responses = (self.connected_nodes().len() * 2 / 3) + 1; // Require 2/3 + 1 responses
 
         for node_url in self.connected_nodes() {
-            match self.execute_js_node_request(&node_url, &params, &request_id).await {
+            match self
+                .execute_js_node_request(&node_url, &params, &request_id)
+                .await
+            {
                 Ok(response) => {
                     info!("Got response from node: {}", node_url);
                     node_responses.push(response);
@@ -672,9 +678,11 @@ impl LitNodeClient {
         Ok(ExecuteJsResponse {
             claims: most_common_response.claim_data,
             signatures: Some(serde_json::Value::Object(
-                most_common_response.signed_data.iter()
+                most_common_response
+                    .signed_data
+                    .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
+                    .collect(),
             )),
             decryptions: vec![],
             response: most_common_response.response,
@@ -689,10 +697,10 @@ impl LitNodeClient {
         request_id: &str,
     ) -> Result<NodeShare> {
         let endpoint = format!("{}/web/execute", node_url);
-        
+
         // Get the session signature for this specific node URL
         let session_sig = self.get_session_sig_by_url(&params.session_sigs, node_url)?;
-        
+
         // Prepare the request body based on the JS SDK implementation
         let mut request_body = serde_json::json!({
             "authSig": session_sig,
@@ -709,7 +717,8 @@ impl LitNodeClient {
         }
 
         if let Some(auth_methods) = &params.auth_methods {
-            request_body["authMethods"] = serde_json::to_value(auth_methods).map_err(Error::Serialization)?;
+            request_body["authMethods"] =
+                serde_json::to_value(auth_methods).map_err(Error::Serialization)?;
         }
 
         if let Some(js_params) = &params.js_params {
@@ -753,7 +762,9 @@ impl LitNodeClient {
 
     fn find_most_common_response(&self, responses: &[NodeShare]) -> Result<NodeShare> {
         if responses.is_empty() {
-            return Err(Error::Other("No responses to find consensus from".to_string()));
+            return Err(Error::Other(
+                "No responses to find consensus from".to_string(),
+            ));
         }
 
         // For now, just return the first successful response
@@ -777,14 +788,12 @@ impl LitNodeClient {
             return Err(Error::Other("You must pass in sessionSigs".to_string()));
         }
 
-        let session_sig = session_sigs
-            .get(url)
-            .ok_or_else(|| {
-                Error::Other(format!(
-                    "You passed sessionSigs but we could not find session sig for node {}",
-                    url
-                ))
-            })?;
+        let session_sig = session_sigs.get(url).ok_or_else(|| {
+            Error::Other(format!(
+                "You passed sessionSigs but we could not find session sig for node {}",
+                url
+            ))
+        })?;
 
         Ok(session_sig.clone())
     }
