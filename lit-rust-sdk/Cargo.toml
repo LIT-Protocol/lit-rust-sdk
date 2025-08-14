@@ -9,7 +9,7 @@ reqwest = { version = "0.12", features = ["json"] }
 reqwest_legacy = { version = "0.11", features = ["json"], package = "reqwest" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 hex = "0.4"
 rand = "0.8"
 url = "2.5"
@@ -26,6 +26,7 @@ blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
 elliptic-curve = "0.13"
 futures = "0.3"
 k256 = { version = "0.13", features = ["serde", "ecdsa", "arithmetic"] }
+serde_bare = "0.5.0"
 # lit_node = { path ="../lit-assets/rust/lit-node" }
 
 [dev-dependencies]
