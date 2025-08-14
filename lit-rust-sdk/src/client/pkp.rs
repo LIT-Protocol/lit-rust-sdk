@@ -4,7 +4,6 @@ use crate::types::{
     AuthMethod, AuthSig, JsonSignSessionKeyResponseV1, LitResourceAbilityRequest,
     SessionKeySignedMessage, SessionSignature, SessionSignatures, SignSessionKeyRequest,
 };
-use blsful::{Bls12381G2Impl, Signature, SignatureShare};
 use ed25519_dalek::Signer;
 use ethers::types::Address;
 use rand::Rng;
@@ -294,37 +293,18 @@ impl super::LitNodeClient {
             .collect();
         let one_response_with_share = parsed_responses[0].clone();
 
-        let shares = parsed_responses
-            .iter()
-            .map(|response| response.signature_share.clone())
-            .collect::<Vec<SignatureShare<Bls12381G2Impl>>>();
+        let signature = crate::bls::combine(&parsed_responses)?;
 
-        let signature = match Signature::from_shares(&shares) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(Error::Other(format!(
-                    "Failed to combine BLS signature shares: {}",
-                    e
-                )));
-            }
-        };
+        let bls_root_key_bytes = hex::decode(&one_response_with_share.bls_root_pubkey)
+            .map_err(|e| Error::Other(format!("Failed to decode root key: {}", e)))?;
+        let data_signed = hex::decode(&one_response_with_share.data_signed)
+            .map_err(|e| Error::Other(format!("Failed to decode data_signed: {}", e)))?;
+        
+        crate::bls::verify(&bls_root_key_bytes, &data_signed, &signature)
+            .map_err(|e| Error::Other(format!("Failed to verify signature when getting delegation signature from PKP and locally checking against the root key: {}", e)))?;
 
-        let bls_root_key = blsful::PublicKey::<Bls12381G2Impl>::try_from(
-            &hex::decode(&one_response_with_share.bls_root_pubkey)
-                .expect("Failed to decode root key"),
-        )
-        .expect("Failed to convert bls public key from bytes");
-        let _ = signature
-            .verify(
-                &bls_root_key,
-                hex::decode(&one_response_with_share.data_signed).expect("Could not decode data_signed").as_slice(),
-            )
-            .expect("Failed to verify signature when getting delegation signature from PKP and locally checking against the root key");
-
-        let serialized_signature = match serde_json::to_string(&signature) {
-            Ok(s) => s,
-            Err(e) => panic!("Failed to serialize signature: {:?}", e),
-        };
+        let serialized_signature = serde_json::to_string(&signature)
+            .map_err(|e| Error::Other(format!("Failed to serialize signature: {}", e)))?;
 
         Ok(AuthSig {
             sig: serialized_signature,

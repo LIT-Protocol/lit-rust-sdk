@@ -2,4 +2,4 @@ The goal of this project is to create a Rust SDK that lets you use Lit Protocol.
 
 Additionally, there is a rust project (the lit node itself) in the lit-assets/rust/lit-node folder. It has various tests in it that you can use as a reference. Specifically, look at the lit-assets/rust/lit-node/tests/acceptance/web_user_tests.rs file which runs full integration tests against the lit nodes. Look at `test_lit_action_session_sigs(&testnet, &validator_collection, CurveType::BLS).await` for an example of how to run a lit action using session signatures.
 
-You can run the tests of this new Rust SDK by running `cargo test` in the lit-rust-sdk folder. The tests should connect to real lit nodes and make real HTTP requests, etc. Do not mock anything in the tests.
+You can run the tests of this new Rust SDK by running `cargo test -- -nocapture` in the lit-rust-sdk folder. The tests should connect to real lit nodes and make real HTTP requests, etc. Do not mock anything in the tests.
