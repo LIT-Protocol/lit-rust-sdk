@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod blockchain;
 pub mod bls;
 pub mod client;
 pub mod config;
