@@ -13,9 +13,9 @@ pub enum LitNetwork {
 impl LitNetwork {
     pub fn staking_contract_address(&self) -> Option<&'static str> {
         match self {
-            LitNetwork::DatilDev => Some("0xD80149f66cC88d8C8AFf84a87331Ec392c979E5f"),
-            LitNetwork::DatilTest => Some("0x3e8201Ba1239E6784cEc1B96EdadB3d01E69A493"),
-            LitNetwork::Datil => Some("0x3e8201Ba1239E6784cEc1B96EdadB3d01E69A493"),
+            LitNetwork::DatilDev => Some("0xD4507CD392Af2c80919219d7896508728f6A623F"),
+            LitNetwork::DatilTest => Some("0x5758aDa5a1dC05e659eF0B5062fbcF093Ec572D1"),
+            LitNetwork::Datil => Some("0x21d636d95eE71150c0c3Ffa79268c989a329d1CE"),
             LitNetwork::Custom => None,
         }
     }
