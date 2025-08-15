@@ -1,5 +1,5 @@
+use crate::blockchain::staking::Epoch;
 use crate::{
-    config::LitNetwork,
     error::{Error, Result},
     types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo},
 };
@@ -13,6 +13,9 @@ impl super::LitNodeClient {
             "Starting connection to Lit Network: {:?}",
             self.config.lit_network
         );
+
+        let _epoch = self.current_epoch_state().await?;
+        // TODO: initialize the listener
 
         let bootstrap_urls = self.get_bootstrap_urls().await?;
         if bootstrap_urls.is_empty() {
@@ -31,32 +34,21 @@ impl super::LitNodeClient {
     }
 
     async fn get_bootstrap_urls(&self) -> Result<Vec<String>> {
-        match self.config.lit_network {
-            LitNetwork::DatilDev => Ok(vec![
-                "https://15.235.83.220:7470".to_string(),
-                "https://15.235.83.220:7471".to_string(),
-                "https://15.235.83.220:7472".to_string(),
-            ]),
-            _ => self.fetch_validator_urls().await,
+        let validators = self
+            .staking
+            .get_validators_structs_in_current_epoch()
+            .await?;
+        let mut urls = Vec::with_capacity(validators.len());
+        for validator in validators {
+            let prefix = if validator.port == 443 {
+                "https"
+            } else {
+                "http"
+            };
+            urls.push(format!("{}://{}:{}", prefix, validator.ip, validator.port));
         }
-    }
 
-    async fn fetch_validator_urls(&self) -> Result<Vec<String>> {
-        let _rpc_url = self
-            .config
-            .rpc_url
-            .as_deref()
-            .or_else(|| self.config.lit_network.rpc_url())
-            .ok_or_else(|| Error::Other("No RPC URL configured".to_string()))?;
-
-        let _staking_address = self
-            .config
-            .lit_network
-            .staking_contract_address()
-            .ok_or_else(|| Error::Other("No staking contract address for network".to_string()))?;
-
-        warn!("Validator URL fetching not fully implemented yet");
-        Ok(vec![])
+        Ok(urls)
     }
 
     async fn handshake_with_nodes(&mut self, urls: Vec<String>, min_count: usize) -> Result<()> {
@@ -134,6 +126,11 @@ impl super::LitNodeClient {
                 Error::Serialization(e)
             })?;
         Ok(handshake_response)
+    }
+
+    async fn current_epoch_state(&self) -> Result<Epoch> {
+        let epoch = self.staking.epoch().await?;
+        Ok(epoch)
     }
 
     fn generate_challenge(&self) -> String {

@@ -1,5 +1,8 @@
+use crate::blockchain::staking::Staking;
+use crate::blockchain::staking_contract;
 use crate::config::LitNodeClientConfig;
 use dashmap::DashMap;
+use ethers::prelude::{Http, Provider};
 use reqwest::Client;
 use std::sync::Arc;
 
@@ -18,6 +21,7 @@ pub struct LitNodeClient {
     pub(crate) network_pub_key_set: Option<String>,
     pub(crate) hd_root_pubkeys: Option<Vec<String>>,
     pub(crate) latest_blockhash: Option<String>,
+    pub(crate) staking: Staking<Provider<Http>>,
 }
 
 impl LitNodeClient {
@@ -26,6 +30,7 @@ impl LitNodeClient {
             .timeout(config.connect_timeout)
             .build()
             .expect("Failed to create HTTP client");
+        let staking = staking_contract(config.lit_network);
 
         Self {
             config,
@@ -37,6 +42,7 @@ impl LitNodeClient {
             network_pub_key_set: None,
             hd_root_pubkeys: None,
             latest_blockhash: None,
+            staking,
         }
     }
 }

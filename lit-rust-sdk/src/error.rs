@@ -1,4 +1,3 @@
-use crate::bls;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -32,6 +31,12 @@ pub enum Error {
 
     #[error("Bare serialization error: {0}")]
     BareError(#[from] serde_bare::error::Error),
+
+    #[error("Staking contract error: {0}")]
+    ContractError(
+        #[from]
+        ethers::contract::ContractError<ethers::providers::Provider<ethers::providers::Http>>,
+    ),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

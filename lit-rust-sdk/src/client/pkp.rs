@@ -299,7 +299,7 @@ impl super::LitNodeClient {
             .map_err(|e| Error::Other(format!("Failed to decode root key: {}", e)))?;
         let data_signed = hex::decode(&one_response_with_share.data_signed)
             .map_err(|e| Error::Other(format!("Failed to decode data_signed: {}", e)))?;
-        
+
         crate::bls::verify(&bls_root_key_bytes, &data_signed, &signature)
             .map_err(|e| Error::Other(format!("Failed to verify signature when getting delegation signature from PKP and locally checking against the root key: {}", e)))?;
 
