@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.40", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
-reqwest_legacy = { version = "0.11", features = ["json"], package = "reqwest" }
+reqwest_legacy = { version = "0.11", features = ["json", "rustls-tls"], package = "reqwest" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
@@ -27,8 +27,6 @@ elliptic-curve = "0.13"
 futures = "0.3"
 k256 = { version = "0.13", features = ["serde", "ecdsa", "arithmetic"] }
 serde_bare = "0.5.0"
-im = "15"
-arc-swap = "1.7"
 # lit_node = { path ="../lit-assets/rust/lit-node" }
 
 [dev-dependencies]
