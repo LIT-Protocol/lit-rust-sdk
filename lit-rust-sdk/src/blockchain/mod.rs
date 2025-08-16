@@ -15,7 +15,7 @@ use alloy::{
     providers::ProviderBuilder,
 };
 
-enum Contract {
+pub enum Contract {
     Staking,
     PKPNFT,
     RateLimitNFT,
@@ -33,7 +33,7 @@ impl Contract {
     }
 }
 
-async fn resolve_address(contract: Contract, lit_network: LitNetwork) -> Result<Address> {
+pub async fn resolve_address(contract: Contract, lit_network: LitNetwork) -> Result<Address> {
     let provider = ProviderBuilder::new()
         .connect(lit_network.rpc_url())
         .await?;
