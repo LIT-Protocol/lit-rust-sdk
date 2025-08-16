@@ -14,11 +14,12 @@ async fn test_connect_to_datil_dev() {
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
-        rpc_url: None,
     };
 
     // Create client
-    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
 
     // Connect to the network
     match client.connect().await {
@@ -76,10 +77,11 @@ async fn test_connect_to_datil_test() {
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: true, // Enable attestation for test network
-        rpc_url: None,
     };
 
-    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {

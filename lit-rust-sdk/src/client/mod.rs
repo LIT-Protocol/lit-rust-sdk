@@ -1,8 +1,5 @@
 use crate::config::LitNodeClientConfig;
-use alloy::{
-    primitives::Address,
-    providers::{DynProvider, Provider as ProviderTrait, ProviderBuilder},
-};
+use alloy::providers::{DynProvider, Provider as ProviderTrait, ProviderBuilder};
 use dashmap::DashMap;
 use eyre::Result;
 use reqwest::Client;
@@ -35,29 +32,11 @@ impl LitNodeClient<DynProvider> {
     pub async fn new(config: LitNodeClientConfig) -> Result<Self> {
         let http_client = Client::builder().timeout(config.connect_timeout).build()?;
 
-        let rpc_url = match &config.rpc_url {
-            Some(rpc_url) => rpc_url.clone(),
-            None => match config.lit_network.rpc_url() {
-                Some(rpc_url) => rpc_url.to_string(),
-                None => {
-                    return Err(eyre::eyre!(
-                        "RPC url not found for lit network that was specified"
-                    ));
-                }
-            },
-        };
-
+        let rpc_url = config.lit_network.rpc_url();
         let provider = ProviderBuilder::new().connect(&rpc_url).await?;
-        let staking_address = match config.lit_network.staking_contract_address() {
-            Some(staking_address) => staking_address,
-            None => {
-                return Err(eyre::eyre!(
-                    "Staking contract address not found for lit network that was specified"
-                ));
-            }
-        };
+        let staking_address = config.lit_network.staking_contract_address()?;
 
-        let staking = Staking::new(staking_address.parse::<Address>()?, provider.erased());
+        let staking = Staking::new(staking_address, provider.erased());
 
         Ok(Self {
             config,
