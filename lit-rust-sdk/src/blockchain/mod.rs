@@ -1,10 +1,5 @@
-use alloy::sol;
+mod rate_limit_nft;
+mod staking;
 
-sol!(// `all_derives` - derives standard Rust traits.
-    #![sol(all_derives)]
-    // `extra_derives` - derives additional traits by specifying their path.
-    #![sol(extra_derives(serde::Serialize, serde::Deserialize))]
-    #[sol(rpc)]
-    Staking,
-    "src/blockchain/abis/Staking.json"
-);
+pub use rate_limit_nft::RateLimitNFT;
+pub use staking::Staking;
