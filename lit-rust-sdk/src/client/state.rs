@@ -1,7 +1,7 @@
 use crate::types::ConnectionState;
 use std::collections::HashMap;
 
-impl super::LitNodeClient {
+impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     pub fn is_ready(&self) -> bool {
         self.ready
     }

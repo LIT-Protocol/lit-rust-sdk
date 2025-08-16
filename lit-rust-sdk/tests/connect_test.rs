@@ -18,7 +18,7 @@ async fn test_connect_to_datil_dev() {
     };
 
     // Create client
-    let mut client = LitNodeClient::new(config);
+    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
 
     // Connect to the network
     match client.connect().await {
@@ -79,7 +79,7 @@ async fn test_connect_to_datil_test() {
         rpc_url: None,
     };
 
-    let mut client = LitNodeClient::new(config);
+    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {

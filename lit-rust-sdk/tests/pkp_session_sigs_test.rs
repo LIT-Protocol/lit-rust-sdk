@@ -1,4 +1,3 @@
-use ethers::signers::Signer;
 use lit_rust_sdk::{
     auth::{load_wallet_from_env, EthWalletProvider},
     types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
@@ -20,7 +19,7 @@ async fn test_get_pkp_session_sigs() {
         }
     };
 
-    println!("Using wallet address: 0x{:x}", wallet.address());
+    println!("Using wallet address: {}", wallet.address());
 
     // Create client configuration
     let config = LitNodeClientConfig {
@@ -34,7 +33,7 @@ async fn test_get_pkp_session_sigs() {
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config);
+    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {
@@ -71,7 +70,7 @@ async fn test_get_pkp_session_sigs() {
 
     // TODO: Create capacity delegation auth sig
     // println!("🔄 Creating capacity delegation auth sig...");
-    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // let delegatee_addresses = vec![wallet.address().to_string()];
     // let capacity_auth_sig = match client
     //     .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "1")
     //     .await
@@ -151,7 +150,7 @@ async fn test_auth_method_creation() {
 
     // Create a mock client (we don't need real connection for auth method creation)
     let config = LitNodeClientConfig::default();
-    let client = LitNodeClient::new(config);
+    let client = LitNodeClient::new(config).await.expect("Failed to create client");
 
     let auth_method = EthWalletProvider::authenticate(&wallet, &client)
         .await
@@ -176,7 +175,7 @@ async fn test_capacity_delegation_creation() {
         }
     };
 
-    let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    let delegatee_addresses = vec![wallet.address().to_string()];
     let auth_sig = EthWalletProvider::create_capacity_delegation_auth_sig(
         &wallet,
         "test_token_id",
@@ -189,7 +188,7 @@ async fn test_capacity_delegation_creation() {
     assert!(!auth_sig.sig.is_empty());
     assert_eq!(auth_sig.derived_via, "web3.eth.personal.sign");
     assert!(!auth_sig.signed_message.is_empty());
-    assert_eq!(auth_sig.address, format!("0x{:x}", wallet.address()));
+    assert_eq!(auth_sig.address, wallet.address().to_string());
 
     // Verify the signed message is valid JSON
     let _: serde_json::Value = serde_json::from_str(&auth_sig.signed_message)

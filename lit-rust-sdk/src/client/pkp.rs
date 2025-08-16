@@ -1,21 +1,22 @@
 use crate::auth::EthWalletProvider;
-use crate::error::{Error, Result};
 use crate::types::{
     AuthMethod, AuthSig, JsonSignSessionKeyResponseV1, LitResourceAbilityRequest,
     SessionKeySignedMessage, SessionSignature, SessionSignatures, SignSessionKeyRequest,
 };
+use alloy::hex::FromHex;
+use alloy::primitives::Address;
+use alloy::signers::local::PrivateKeySigner;
 use ed25519_dalek::Signer;
-use ethers::types::Address;
+use eyre::Result;
 use rand::Rng;
 use serde_json::Value;
 use siwe::Message;
 use siwe_recap::Capability;
 use std::collections::HashMap;
 use std::ops::{Add, Sub};
-use tokio::time::timeout;
 use tracing::{info, warn};
 
-impl super::LitNodeClient {
+impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     pub async fn get_pkp_session_sigs(
         &self,
         pkp_public_key: &str,
@@ -26,7 +27,7 @@ impl super::LitNodeClient {
         expiration: &str,
     ) -> Result<SessionSignatures> {
         if !self.ready {
-            return Err(Error::Other("Client not connected".to_string()));
+            return Err(eyre::eyre!("Lit Node Client not connected"));
         }
 
         let session_keypair = {
@@ -77,8 +78,7 @@ impl super::LitNodeClient {
                 expiration: expiration.to_string(),
                 node_address: node_url.to_owned(),
             };
-            let message =
-                serde_json::to_string(&session_key_signed_message).map_err(Error::Serialization)?;
+            let message = serde_json::to_string(&session_key_signed_message)?;
             let signature = session_keypair.sign(message.as_bytes());
             let session_sig = SessionSignature {
                 sig: signature.to_string(),
@@ -91,8 +91,8 @@ impl super::LitNodeClient {
         }
 
         if session_sigs.is_empty() {
-            return Err(Error::Other(
-                "Failed to create session signatures for any node".to_string(),
+            return Err(eyre::eyre!(
+                "Failed to create session signatures for any node"
             ));
         }
         Ok(session_sigs)
@@ -106,7 +106,7 @@ impl super::LitNodeClient {
         pkp_eth_address: &str,
         session_key_uri: &str,
     ) -> Result<String> {
-        let address = self.to_checksum_address(pkp_eth_address)?;
+        let address = Address::from_hex(pkp_eth_address)?;
         info!("Using PKP ETH address for SIWE message: {}", address);
 
         let nonce = self.get_latest_ethereum_blockhash().await?;
@@ -131,11 +131,6 @@ impl super::LitNodeClient {
                 .with_actions_convert(resource_prefix.clone(), [(resource.clone(), [])]);
         }
 
-        let eth_address: [u8; 20] = hex::decode(&address[2..])
-            .map_err(|e| Error::Other(format!("Failed to decode address: {}", e)))?
-            .try_into()
-            .map_err(|_| Error::Other("Invalid address length".to_string()))?;
-
         let now = chrono::Utc::now();
         let siwe_issued_at = now.sub(chrono::Duration::days(1));
         let siwe_expiration_time = now.add(chrono::Duration::days(7));
@@ -143,7 +138,7 @@ impl super::LitNodeClient {
         let siwe_message = capabilities
             .build_message(Message {
                 domain: "localhost:3000".parse().unwrap(),
-                address: eth_address,
+                address: address.into_array(),
                 statement: Some(r#"I am delegating to a session key"#.into()),
                 uri: session_key_uri.parse().unwrap(),
                 version: siwe::Version::V1,
@@ -163,24 +158,16 @@ impl super::LitNodeClient {
                 request_id: None,
                 resources: vec![],
             })
-            .map_err(|e| Error::Other(format!("Could not create SIWE message: {}", e)))?;
+            .map_err(|e| eyre::eyre!("Could not create SIWE message: {}", e))?;
 
         let message_str = siwe_message.to_string();
         info!("Created SIWE message: {}", message_str);
         Ok(message_str)
     }
 
-    fn to_checksum_address(&self, address: &str) -> Result<String> {
-        use ethers::utils::to_checksum;
-        let addr: Address = address
-            .parse()
-            .map_err(|_| Error::Other("Invalid address format".to_string()))?;
-        Ok(to_checksum(&addr, None))
-    }
-
     pub async fn create_capacity_delegation_auth_sig(
         &self,
-        wallet: &ethers::signers::LocalWallet,
+        wallet: &PrivateKeySigner,
         capacity_token_id: &str,
         delegatee_addresses: &[String],
         uses: &str,
@@ -196,7 +183,7 @@ impl super::LitNodeClient {
 
     async fn get_latest_ethereum_blockhash(&self) -> Result<String> {
         let rpc_url = std::env::var("ETHEREUM_RPC_URL").map_err(|_| {
-            Error::Other("ETHEREUM_RPC_URL environment variable not set".to_string())
+            eyre::eyre!("ETHEREUM_RPC_URL environment variable not set".to_string())
         })?;
         let request = serde_json::json!({
             "jsonrpc": "2.0",
@@ -209,22 +196,19 @@ impl super::LitNodeClient {
             .post(&rpc_url)
             .json(&request)
             .send()
-            .await
-            .map_err(Error::Network)?;
+            .await?;
         if !response.status().is_success() {
-            return Err(Error::Other(format!(
+            return Err(eyre::eyre!(
                 "Failed to fetch latest block: HTTP {}",
                 response.status()
-            )));
+            ));
         }
-        let response_json: serde_json::Value = response.json().await.map_err(Error::Network)?;
+        let response_json: serde_json::Value = response.json().await?;
         let block_hash = response_json
             .get("result")
             .and_then(|result| result.get("hash"))
             .and_then(|hash| hash.as_str())
-            .ok_or_else(|| {
-                Error::Other("Failed to extract block hash from response".to_string())
-            })?;
+            .ok_or_else(|| eyre::eyre!("Failed to extract block hash from response"))?;
         Ok(block_hash.to_string())
     }
 
@@ -251,24 +235,17 @@ impl super::LitNodeClient {
                 epoch: None,
             };
             info!("Signing session key with node: {}", endpoint);
-            let response = timeout(
-                self.config.connect_timeout,
-                self.http_client
-                    .post(&endpoint)
-                    .header("X-Request-Id", request_id.clone())
-                    .json(&request)
-                    .send(),
-            )
-            .await
-            .map_err(|_| Error::ConnectionTimeout)?
-            .map_err(Error::Network)?;
+            let response = self
+                .http_client
+                .post(&endpoint)
+                .header("X-Request-Id", request_id.clone())
+                .json(&request)
+                .send()
+                .await?;
 
             if !response.status().is_success() {
                 let status = response.status();
-                let body = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unable to read body".to_string());
+                let body = response.text().await?;
                 warn!(
                     "Session key signing failed with status {}: {}",
                     status, body
@@ -276,14 +253,14 @@ impl super::LitNodeClient {
                 continue;
             }
 
-            let response_body = response.text().await.map_err(Error::Network)?;
+            let response_body = response.text().await?;
             info!("Session key signing response: {}", response_body);
             node_responses.push(response_body);
         }
 
         if node_responses.is_empty() {
-            return Err(Error::Other(
-                "Failed to get delegation signature from any node".to_string(),
+            return Err(eyre::eyre!(
+                "Failed to get delegation signature from any node"
             ));
         }
 
@@ -296,21 +273,23 @@ impl super::LitNodeClient {
         let signature = crate::bls::combine(&parsed_responses)?;
 
         let bls_root_key_bytes = hex::decode(&one_response_with_share.bls_root_pubkey)
-            .map_err(|e| Error::Other(format!("Failed to decode root key: {}", e)))?;
+            .map_err(|e| eyre::eyre!("Failed to decode root key: {}", e))?;
         let data_signed = hex::decode(&one_response_with_share.data_signed)
-            .map_err(|e| Error::Other(format!("Failed to decode data_signed: {}", e)))?;
-        
+            .map_err(|e| eyre::eyre!("Failed to decode data_signed: {}", e))?;
+
         crate::bls::verify(&bls_root_key_bytes, &data_signed, &signature)
-            .map_err(|e| Error::Other(format!("Failed to verify signature when getting delegation signature from PKP and locally checking against the root key: {}", e)))?;
+            .map_err(|e| eyre::eyre!("Failed to verify signature when getting delegation signature from PKP and locally checking against the root key: {}", e))?;
 
         let serialized_signature = serde_json::to_string(&signature)
-            .map_err(|e| Error::Other(format!("Failed to serialize signature: {}", e)))?;
+            .map_err(|e| eyre::eyre!("Failed to serialize signature: {}", e))?;
+
+        let address = pkp_eth_address.parse::<Address>()?;
 
         Ok(AuthSig {
             sig: serialized_signature,
             derived_via: "lit.bls".to_string(),
             signed_message: one_response_with_share.siwe_message.clone(),
-            address: self.to_checksum_address(pkp_eth_address)?,
+            address: address.to_checksum(None),
             algo: Some("LIT_BLS".to_string()),
         })
     }
