@@ -1,5 +1,9 @@
 use crate::config::LitNodeClientConfig;
-use alloy::{primitives::Address, providers::ProviderBuilder, sol};
+use alloy::{
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    sol,
+};
 use dashmap::DashMap;
 use eyre::Result;
 use reqwest::Client;
@@ -29,7 +33,7 @@ pub struct LitNodeClient {
     pub(crate) network_pub_key_set: Option<String>,
     pub(crate) hd_root_pubkeys: Option<Vec<String>>,
     pub(crate) latest_blockhash: Option<String>,
-    pub(crate) staking: Staking,
+    pub(crate) staking: Staking::StakingInstance<Provider>,
 }
 
 impl LitNodeClient {
