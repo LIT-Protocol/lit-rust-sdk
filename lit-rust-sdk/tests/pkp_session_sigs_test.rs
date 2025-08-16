@@ -29,11 +29,12 @@ async fn test_get_pkp_session_sigs() {
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
-        rpc_url: None,
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {
@@ -150,7 +151,9 @@ async fn test_auth_method_creation() {
 
     // Create a mock client (we don't need real connection for auth method creation)
     let config = LitNodeClientConfig::default();
-    let client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
 
     let auth_method = EthWalletProvider::authenticate(&wallet, &client)
         .await

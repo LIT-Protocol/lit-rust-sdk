@@ -1,3 +1,5 @@
+use alloy::primitives::Address;
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -7,25 +9,50 @@ pub enum LitNetwork {
     DatilDev,
     DatilTest,
     Datil,
-    Custom,
 }
 
 impl LitNetwork {
-    pub fn staking_contract_address(&self) -> Option<&'static str> {
+    pub fn staking_contract_address(&self) -> Result<Address> {
         match self {
-            LitNetwork::DatilDev => Some("0xD4507CD392Af2c80919219d7896508728f6A623F"),
-            LitNetwork::DatilTest => Some("0x5758aDa5a1dC05e659eF0B5062fbcF093Ec572D1"),
-            LitNetwork::Datil => Some("0x21d636d95eE71150c0c3Ffa79268c989a329d1CE"),
-            LitNetwork::Custom => None,
+            LitNetwork::DatilDev => {
+                Ok("0xD4507CD392Af2c80919219d7896508728f6A623F".parse::<Address>()?)
+            }
+            LitNetwork::DatilTest => {
+                Ok("0x5758aDa5a1dC05e659eF0B5062fbcF093Ec572D1".parse::<Address>()?)
+            }
+            LitNetwork::Datil => {
+                Ok("0x21d636d95eE71150c0c3Ffa79268c989a329d1CE".parse::<Address>()?)
+            }
         }
     }
 
-    pub fn rpc_url(&self) -> Option<&'static str> {
+    pub fn contract_resolver_address(&self) -> Result<Address> {
         match self {
-            LitNetwork::DatilDev => Some("https://yellowstone-rpc.litprotocol.com/"),
-            LitNetwork::DatilTest => Some("https://yellowstone-rpc.litprotocol.com/"),
-            LitNetwork::Datil => Some("https://yellowstone-rpc.litprotocol.com/"),
-            LitNetwork::Custom => None,
+            LitNetwork::DatilDev => {
+                Ok("0xCF5d7074c722Dd044Dd45EC791942b881366627c".parse::<Address>()?)
+            }
+            LitNetwork::DatilTest => {
+                Ok("0xCf908e1E4Ee79fb540e144C3EDB2796E8D413548".parse::<Address>()?)
+            }
+            LitNetwork::Datil => {
+                Ok("0x5326a59fF2c41bCdA7E64F9afB9C313d0342117B".parse::<Address>()?)
+            }
+        }
+    }
+
+    pub fn rpc_url(&self) -> &'static str {
+        match self {
+            LitNetwork::DatilDev => "https://yellowstone-rpc.litprotocol.com/",
+            LitNetwork::DatilTest => "https://yellowstone-rpc.litprotocol.com/",
+            LitNetwork::Datil => "https://yellowstone-rpc.litprotocol.com/",
+        }
+    }
+
+    pub fn env(&self) -> u8 {
+        match self {
+            LitNetwork::DatilDev => 0,
+            LitNetwork::DatilTest => 0,
+            LitNetwork::Datil => 2,
         }
     }
 }
@@ -38,7 +65,6 @@ pub struct LitNodeClientConfig {
     pub debug: bool,
     pub connect_timeout: Duration,
     pub check_node_attestation: bool,
-    pub rpc_url: Option<String>,
 }
 
 impl Default for LitNodeClientConfig {
@@ -50,7 +76,6 @@ impl Default for LitNodeClientConfig {
             debug: false,
             connect_timeout: Duration::from_millis(20000),
             check_node_attestation: false,
-            rpc_url: None,
         }
     }
 }

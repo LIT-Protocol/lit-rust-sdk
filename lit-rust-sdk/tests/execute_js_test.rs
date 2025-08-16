@@ -41,11 +41,12 @@ async fn test_execute_js_hello_world() {
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
-        rpc_url: None,
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {
@@ -288,11 +289,12 @@ go();
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
-        rpc_url: None,
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
     client.connect().await.expect("Failed to connect");
 
     // Create auth method
