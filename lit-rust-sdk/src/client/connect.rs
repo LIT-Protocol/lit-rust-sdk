@@ -1,5 +1,8 @@
 // use crate::blockchain::Staking;
-use crate::types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo};
+use crate::{
+    blockchain::Staking,
+    types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo},
+};
 use eyre::Result;
 use rand::Rng;
 use tracing::{info, warn};
@@ -15,9 +18,18 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         // TODO: initialize the listener
 
         let network_info = self.get_network_info().await?;
-        info!("Found {} network info", network_info.len());
+        info!("Found network info: {:?}", network_info);
 
-        let bootstrap_urls = vec![];
+        let validators = network_info._2;
+        let mut bootstrap_urls = Vec::with_capacity(validators.len());
+        for validator in validators {
+            let prefix = if validator.port == 443 {
+                "https"
+            } else {
+                "http"
+            };
+            bootstrap_urls.push(format!("{}://{}:{}", prefix, validator.ip, validator.port));
+        }
 
         let min_node_count = self.config.min_node_count.unwrap_or(2);
         self.handshake_with_nodes(bootstrap_urls, min_node_count)
@@ -29,23 +41,15 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         Ok(())
     }
 
-    async fn get_network_info(&self) -> Result<Vec<String>> {
-        let validators = self
+    async fn get_network_info(
+        &self,
+    ) -> Result<Staking::getActiveUnkickedValidatorStructsAndCountsReturn> {
+        let network_info = self
             .staking
-            .getActiveUnkickedValidatorStructs()
+            .getActiveUnkickedValidatorStructsAndCounts()
             .call()
             .await?;
-        let mut urls = Vec::with_capacity(validators.len());
-        for validator in validators {
-            let prefix = if validator.port == 443 {
-                "https"
-            } else {
-                "http"
-            };
-            urls.push(format!("{}://{}:{}", prefix, validator.ip, validator.port));
-        }
-
-        Ok(urls)
+        Ok(network_info)
     }
 
     async fn handshake_with_nodes(&mut self, urls: Vec<String>, min_count: usize) -> Result<()> {
