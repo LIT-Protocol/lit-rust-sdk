@@ -8,7 +8,6 @@ use lit_rust_sdk::{
     LitNetwork,
 };
 use std::str::FromStr;
-use url::Url;
 
 #[tokio::test]
 async fn test_mint_rate_limit_nft() {
@@ -63,15 +62,28 @@ async fn test_mint_rate_limit_nft() {
         .expect("Invalid date");
 
     let expires_at = U256::from(midnight_date.timestamp() as u64);
+    let requests_per_kilosecond = U256::from(1000);
+
+    println!(
+        "🔄 Calculating cost for {} requests per kilosecond until {}",
+        requests_per_kilosecond, midnight_date
+    );
+
+    // Calculate the exact cost needed
+    let cost = rate_limit_nft
+        .calculateCost(requests_per_kilosecond, expires_at)
+        .call()
+        .await
+        .expect("Failed to calculate cost");
+
+    println!("💰 Calculated cost: {} wei", cost);
 
     println!(
         "🔄 Minting Rate Limit NFT with expiresAt: {} ({})",
         expires_at, midnight_date
     );
 
-    // Try minting with 0.001 ETH
-    let mint_value = U256::from_str("1000000000000000").expect("Failed to parse mint value"); // 0.001 ETH in wei
-    let tx = rate_limit_nft.mint(expires_at).value(mint_value);
+    let tx = rate_limit_nft.mint(expires_at).value(cost);
 
     let pending_tx = tx.send().await.expect("Failed to send mint transaction");
 
