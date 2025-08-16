@@ -1,17 +1,17 @@
+// use crate::blockchain::Staking;
 use crate::types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo};
-use alloy::primitives::U256;
 use eyre::Result;
 use rand::Rng;
 use tracing::{info, warn};
 
-impl super::LitNodeClient {
+impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     pub async fn connect(&mut self) -> Result<()> {
         info!(
             "Starting connection to Lit Network: {:?}",
             self.config.lit_network
         );
 
-        let _epoch = self.current_epoch_state().await?;
+        // let _epoch = self.current_epoch_state().await?;
         // TODO: initialize the listener
 
         let network_info = self.get_network_info().await?;
@@ -30,7 +30,11 @@ impl super::LitNodeClient {
     }
 
     async fn get_network_info(&self) -> Result<Vec<String>> {
-        let validators = self.staking.getActiveUnkickedValidatorStructs().await?;
+        let validators = self
+            .staking
+            .getActiveUnkickedValidatorStructs()
+            .call()
+            .await?;
         let mut urls = Vec::with_capacity(validators.len());
         for validator in validators {
             let prefix = if validator.port == 443 {
@@ -117,10 +121,11 @@ impl super::LitNodeClient {
         Ok(handshake_response)
     }
 
-    async fn current_epoch_state(&self) -> Result<U256> {
-        let epoch = self.staking.epoch().await?;
-        Ok(epoch)
-    }
+    // async fn current_epoch_state(&self) -> Result<Staking::Epoch> {
+    //     let epoch = self.staking.epoch().call().await?;
+    //     epoch.
+    //     Ok(epoch)
+    // }
 
     fn generate_challenge(&self) -> String {
         let mut rng = rand::thread_rng();

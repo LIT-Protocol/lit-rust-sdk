@@ -1,8 +1,7 @@
 use crate::config::LitNodeClientConfig;
 use alloy::{
     primitives::Address,
-    providers::{Provider, ProviderBuilder},
-    sol,
+    providers::{DynProvider, Provider as ProviderTrait, ProviderBuilder},
 };
 use dashmap::DashMap;
 use eyre::Result;
@@ -14,16 +13,12 @@ mod execute;
 mod pkp;
 mod state;
 
-sol!(// `all_derives` - derives standard Rust traits.
-    #![sol(all_derives)]
-    // `extra_derives` - derives additional traits by specifying their path.
-    #![sol(extra_derives(serde::Serialize, serde::Deserialize))]
-    #[sol(rpc)]
-    Staking,
-    "src/blockchain/abis/Staking.json"
-);
+use crate::blockchain::Staking;
 
-pub struct LitNodeClient {
+pub struct LitNodeClient<P = DynProvider>
+where
+    P: ProviderTrait,
+{
     pub(crate) config: LitNodeClientConfig,
     pub(crate) http_client: Client,
     pub(crate) connection_state: Arc<DashMap<String, crate::types::NodeConnectionInfo>>,
@@ -33,15 +28,15 @@ pub struct LitNodeClient {
     pub(crate) network_pub_key_set: Option<String>,
     pub(crate) hd_root_pubkeys: Option<Vec<String>>,
     pub(crate) latest_blockhash: Option<String>,
-    pub(crate) staking: Staking::StakingInstance<Provider>,
+    pub(crate) staking: Staking::StakingInstance<P>,
 }
 
-impl LitNodeClient {
+impl LitNodeClient<DynProvider> {
     pub async fn new(config: LitNodeClientConfig) -> Result<Self> {
         let http_client = Client::builder().timeout(config.connect_timeout).build()?;
 
-        let rpc_url = match config.rpc_url {
-            Some(rpc_url) => rpc_url,
+        let rpc_url = match &config.rpc_url {
+            Some(rpc_url) => rpc_url.clone(),
             None => match config.lit_network.rpc_url() {
                 Some(rpc_url) => rpc_url.to_string(),
                 None => {
@@ -62,7 +57,7 @@ impl LitNodeClient {
             }
         };
 
-        let staking = Staking::new(staking_address.parse::<Address>()?, provider);
+        let staking = Staking::new(staking_address.parse::<Address>()?, provider.erased());
 
         Ok(Self {
             config,

@@ -9,7 +9,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
 
-impl super::LitNodeClient {
+impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     pub async fn execute_js(&self, params: ExecuteJsParams) -> Result<ExecuteJsResponse> {
         if !self.ready {
             return Err(eyre::eyre!("Client not connected"));

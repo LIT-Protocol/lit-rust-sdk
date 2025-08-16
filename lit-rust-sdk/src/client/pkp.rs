@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::ops::{Add, Sub};
 use tracing::{info, warn};
 
-impl super::LitNodeClient {
+impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     pub async fn get_pkp_session_sigs(
         &self,
         pkp_public_key: &str,
