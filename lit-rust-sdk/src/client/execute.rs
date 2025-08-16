@@ -1,24 +1,21 @@
-use crate::error::{Error, Result};
 use crate::types::{
     ExecuteJsParams, ExecuteJsResponse, NodeShare, SessionSignature, SessionSignatures, SignedData,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use elliptic_curve::{scalar::IsHigh, subtle::ConditionallySelectable, PrimeField};
+use eyre::Result;
 use k256::{AffinePoint, ProjectivePoint, Scalar};
 use reqwest::Client;
 use std::collections::HashMap;
-use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
 impl super::LitNodeClient {
     pub async fn execute_js(&self, params: ExecuteJsParams) -> Result<ExecuteJsResponse> {
         if !self.ready {
-            return Err(Error::Other("Client not connected".to_string()));
+            return Err(eyre::eyre!("Client not connected"));
         }
         if params.code.is_none() && params.ipfs_id.is_none() {
-            return Err(Error::Other(
-                "Either code or ipfsId must be provided".to_string(),
-            ));
+            return Err(eyre::eyre!("Either code or ipfsId must be provided"));
         }
 
         let request_id = self.generate_request_id();
@@ -27,7 +24,6 @@ impl super::LitNodeClient {
         let node_urls = self.connected_nodes();
         let min_responses = node_urls.len() * 2 / 3;
         let http_client = &self.http_client;
-        let connect_timeout = self.config.connect_timeout;
 
         let futures: Vec<_> = node_urls
             .iter()
@@ -36,14 +32,9 @@ impl super::LitNodeClient {
                 let params = params.clone();
                 let request_id = request_id.clone();
                 async move {
-                    let result = Self::execute_js_node_request(
-                        http_client,
-                        connect_timeout,
-                        &node_url,
-                        &params,
-                        &request_id,
-                    )
-                    .await;
+                    let result =
+                        Self::execute_js_node_request(http_client, &node_url, &params, &request_id)
+                            .await;
                     (node_url, result)
                 }
             })
@@ -65,7 +56,7 @@ impl super::LitNodeClient {
         }
 
         if node_responses.len() < min_responses {
-            return Err(Error::Other(format!(
+            return Err(eyre::eyre!(format!(
                 "Not enough successful responses. Got {}, need {}",
                 node_responses.len(),
                 min_responses
@@ -108,7 +99,6 @@ impl super::LitNodeClient {
 
     async fn execute_js_node_request(
         http_client: &Client,
-        connect_timeout: std::time::Duration,
         node_url: &str,
         params: &ExecuteJsParams,
         request_id: &str,
@@ -124,27 +114,21 @@ impl super::LitNodeClient {
             request_body["ipfsId"] = serde_json::Value::String(ipfs_id.clone());
         }
         if let Some(auth_methods) = &params.auth_methods {
-            request_body["authMethods"] =
-                serde_json::to_value(auth_methods).map_err(Error::Serialization)?;
+            request_body["authMethods"] = serde_json::to_value(auth_methods)?;
         }
         if let Some(js_params) = &params.js_params {
             request_body["jsParams"] = js_params.clone();
         }
         debug!("Sending execute request to {}: {}", endpoint, request_body);
 
-        let response = timeout(
-            connect_timeout,
-            http_client
-                .post(&endpoint)
-                .header("X-Request-Id", request_id)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .json(&request_body)
-                .send(),
-        )
-        .await
-        .map_err(|_| Error::ConnectionTimeout)?
-        .map_err(Error::Network)?;
+        let response = http_client
+            .post(&endpoint)
+            .header("X-Request-Id", request_id)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -153,23 +137,21 @@ impl super::LitNodeClient {
                 .await
                 .unwrap_or_else(|_| "Unable to read body".to_string());
             warn!("Execute JS failed with status {}: {}", status, body);
-            return Err(Error::Other(format!("HTTP {} - {}", status, body)));
+            return Err(eyre::eyre!(format!("HTTP {} - {}", status, body)));
         }
 
-        let response_body = response.text().await.map_err(Error::Network)?;
+        let response_body = response.text().await?;
         info!("Execute JS response from {}: {}", node_url, response_body);
         let node_response: NodeShare = serde_json::from_str(&response_body).map_err(|e| {
             warn!("Failed to parse execute JS response: {}", e);
-            Error::Serialization(e)
+            eyre::eyre!(e)
         })?;
         Ok(node_response)
     }
 
     fn find_most_common_response(&self, responses: &[NodeShare]) -> Result<NodeShare> {
         if responses.is_empty() {
-            return Err(Error::Other(
-                "No responses to find consensus from".to_string(),
-            ));
+            return Err(eyre::eyre!("No responses to find consensus from"));
         }
         for response in responses {
             if response.success {
@@ -184,10 +166,10 @@ impl super::LitNodeClient {
         url: &str,
     ) -> Result<SessionSignature> {
         if session_sigs.is_empty() {
-            return Err(Error::Other("You must pass in sessionSigs".to_string()));
+            return Err(eyre::eyre!("You must pass in sessionSigs"));
         }
         let session_sig = session_sigs.get(url).ok_or_else(|| {
-            Error::Other(format!(
+            eyre::eyre!(format!(
                 "You passed sessionSigs but we could not find session sig for node {}",
                 url
             ))
@@ -258,7 +240,7 @@ impl super::LitNodeClient {
             let mut msg_hash = None;
             for share in &valid_shares {
                 let sig_share: Result<Scalar> = serde_json::from_str(&share.signature_share)
-                    .map_err(|e| Error::Other(format!("Failed to parse signature share: {}", e)));
+                    .map_err(|e| eyre::eyre!(format!("Failed to parse signature share: {}", e)));
                 if let Ok(sig_share) = sig_share {
                     parsed_shares.push(sig_share);
                     if public_key.is_none() {
@@ -324,7 +306,7 @@ impl super::LitNodeClient {
         _big_r: AffinePoint,
     ) -> Result<(Scalar, bool)> {
         if signature_shares.is_empty() {
-            return Err(Error::Other("No signature shares provided".to_string()));
+            return Err(eyre::eyre!("No signature shares provided"));
         }
         let mut s: Scalar = signature_shares.into_iter().sum();
         let was_flipped = s.is_high().into();

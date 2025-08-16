@@ -1,10 +1,7 @@
-use crate::blockchain::staking::Epoch;
-use crate::{
-    error::{Error, Result},
-    types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo},
-};
+use crate::types::{HandshakeRequest, HandshakeResponse, NodeConnectionInfo};
+use alloy::primitives::U256;
+use eyre::Result;
 use rand::Rng;
-use tokio::time::timeout;
 use tracing::{info, warn};
 
 impl super::LitNodeClient {
@@ -17,11 +14,10 @@ impl super::LitNodeClient {
         let _epoch = self.current_epoch_state().await?;
         // TODO: initialize the listener
 
-        let bootstrap_urls = self.get_bootstrap_urls().await?;
-        if bootstrap_urls.is_empty() {
-            return Err(Error::Other("No bootstrap URLs found".to_string()));
-        }
-        info!("Found {} bootstrap URLs", bootstrap_urls.len());
+        let network_info = self.get_network_info().await?;
+        info!("Found {} network info", network_info.len());
+
+        let bootstrap_urls = vec![];
 
         let min_node_count = self.config.min_node_count.unwrap_or(2);
         self.handshake_with_nodes(bootstrap_urls, min_node_count)
@@ -33,11 +29,8 @@ impl super::LitNodeClient {
         Ok(())
     }
 
-    async fn get_bootstrap_urls(&self) -> Result<Vec<String>> {
-        let validators = self
-            .staking
-            .get_validators_structs_in_current_epoch()
-            .await?;
+    async fn get_network_info(&self) -> Result<Vec<String>> {
+        let validators = self.staking.getActiveUnkickedValidatorStructs().await?;
         let mut urls = Vec::with_capacity(validators.len());
         for validator in validators {
             let prefix = if validator.port == 443 {
@@ -73,10 +66,10 @@ impl super::LitNodeClient {
         }
 
         if successful_connections < min_count {
-            return Err(Error::NotEnoughNodes {
-                connected: successful_connections,
-                required: min_count,
-            });
+            return Err(eyre::eyre!(format!(
+                "Not enough nodes connected. Connected: {}, Required: {}",
+                successful_connections, min_count
+            )));
         }
         Ok(())
     }
@@ -92,17 +85,13 @@ impl super::LitNodeClient {
 
         info!("Sending handshake to {}: {:?}", handshake_url, request);
 
-        let response = timeout(
-            self.config.connect_timeout,
-            self.http_client
-                .post(&handshake_url)
-                .header("X-Request-Id", request_id)
-                .json(&request)
-                .send(),
-        )
-        .await
-        .map_err(|_| Error::ConnectionTimeout)?
-        .map_err(Error::Network)?;
+        let response = self
+            .http_client
+            .post(&handshake_url)
+            .header("X-Request-Id", request_id)
+            .json(&request)
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -111,24 +100,24 @@ impl super::LitNodeClient {
                 .await
                 .unwrap_or_else(|_| "Unable to read body".to_string());
             warn!("Handshake failed with status {}: {}", status, body);
-            return Err(Error::HandshakeFailed {
-                url: url.to_string(),
-                reason: format!("HTTP {} - {}", status, body),
-            });
+            return Err(eyre::eyre!(format!(
+                "Handshake failed with status {}: {}",
+                status, body
+            )));
         }
 
-        let body_text = response.text().await.map_err(Error::Network)?;
+        let body_text = response.text().await?;
         info!("Handshake response body: {}", body_text);
 
         let handshake_response: HandshakeResponse =
             serde_json::from_str(&body_text).map_err(|e| {
                 warn!("Failed to parse handshake response: {}", e);
-                Error::Serialization(e)
+                eyre::eyre!(e)
             })?;
         Ok(handshake_response)
     }
 
-    async fn current_epoch_state(&self) -> Result<Epoch> {
+    async fn current_epoch_state(&self) -> Result<U256> {
         let epoch = self.staking.epoch().await?;
         Ok(epoch)
     }

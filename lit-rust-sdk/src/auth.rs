@@ -1,28 +1,25 @@
 use crate::{
-    error::{Error, Result},
     types::{AuthMethod, AuthSig},
     LitNodeClient,
 };
-use ethers::{
-    signers::{LocalWallet, Signer},
-    utils::to_checksum,
-};
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
+use eyre::Result;
 use hex;
 use rand;
 use serde_json::json;
 use siwe::Message;
-use std::str::FromStr;
 use tracing::info;
 
 pub struct EthWalletProvider;
 
 impl EthWalletProvider {
     pub async fn authenticate(
-        wallet: &LocalWallet,
+        wallet: &PrivateKeySigner,
         _lit_node_client: &LitNodeClient,
     ) -> Result<AuthMethod> {
         // Get the wallet address in EIP-55 checksum format
-        let address = to_checksum(&wallet.address(), None);
+        let address = wallet.address();
 
         // Create nonce
         let nonce = format!("0x{}", hex::encode(&rand::random::<[u8; 32]>()));
@@ -44,13 +41,10 @@ impl EthWalletProvider {
         info!("Parsed message: {:?}", parsed_message);
 
         // Sign the SIWE message
-        let signature = wallet
-            .sign_message(&siwe_message)
-            .await
-            .map_err(|e| Error::Other(format!("Failed to sign SIWE message: {}", e)))?;
+        let signature = wallet.sign_message(&siwe_message.as_bytes()).await?;
 
         // Convert signature to hex string
-        let sig_hex = format!("0x{}", hex::encode(signature.to_vec()));
+        let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
 
         // Create the auth method with proper Lit Protocol auth sig format
         let auth_sig = json!({
@@ -69,7 +63,7 @@ impl EthWalletProvider {
     }
 
     pub async fn create_capacity_delegation_auth_sig(
-        wallet: &LocalWallet,
+        wallet: &PrivateKeySigner,
         capacity_token_id: &str,
         delegatee_addresses: &[String],
         uses: &str,
@@ -87,12 +81,9 @@ impl EthWalletProvider {
         let message_str = message.to_string();
 
         // Sign the message
-        let signature = wallet
-            .sign_message(&message_str)
-            .await
-            .map_err(|e| Error::Other(format!("Failed to sign capacity delegation: {}", e)))?;
+        let signature = wallet.sign_message(&message_str.as_bytes()).await?;
 
-        let sig_hex = format!("0x{}", hex::encode(signature.to_vec()));
+        let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
 
         Ok(AuthSig {
             sig: sig_hex,
@@ -104,16 +95,14 @@ impl EthWalletProvider {
     }
 }
 
-pub fn load_wallet_from_env() -> Result<LocalWallet> {
+pub fn load_wallet_from_env() -> Result<PrivateKeySigner> {
     dotenv::dotenv().ok(); // Load .env file if it exists
 
-    let private_key = std::env::var("ETHEREUM_PRIVATE_KEY").map_err(|_| {
-        Error::Other("ETHEREUM_PRIVATE_KEY environment variable not set".to_string())
-    })?;
+    let private_key = std::env::var("ETHEREUM_PRIVATE_KEY")
+        .map_err(|_| eyre::eyre!("ETHEREUM_PRIVATE_KEY environment variable not set"))?;
 
-    // Remove 0x prefix if present
-    let private_key = private_key.strip_prefix("0x").unwrap_or(&private_key);
-
-    LocalWallet::from_str(private_key)
-        .map_err(|e| Error::Other(format!("Invalid private key: {}", e)))
+    match private_key.parse() {
+        Ok(signer) => Ok(signer),
+        Err(e) => Err(eyre::eyre!("Invalid private key: {}", e)),
+    }
 }

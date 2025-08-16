@@ -1,8 +1,7 @@
-use crate::blockchain::staking::Staking;
-use crate::blockchain::staking_contract;
 use crate::config::LitNodeClientConfig;
+use alloy::{primitives::Address, providers::ProviderBuilder, sol};
 use dashmap::DashMap;
-use ethers::prelude::{Http, Provider};
+use eyre::Result;
 use reqwest::Client;
 use std::sync::Arc;
 
@@ -10,6 +9,15 @@ mod connect;
 mod execute;
 mod pkp;
 mod state;
+
+sol!(// `all_derives` - derives standard Rust traits.
+    #![sol(all_derives)]
+    // `extra_derives` - derives additional traits by specifying their path.
+    #![sol(extra_derives(serde::Serialize, serde::Deserialize))]
+    #[sol(rpc)]
+    Staking,
+    "src/blockchain/abis/Staking.json"
+);
 
 pub struct LitNodeClient {
     pub(crate) config: LitNodeClientConfig,
@@ -21,18 +29,38 @@ pub struct LitNodeClient {
     pub(crate) network_pub_key_set: Option<String>,
     pub(crate) hd_root_pubkeys: Option<Vec<String>>,
     pub(crate) latest_blockhash: Option<String>,
-    pub(crate) staking: Staking<Provider<Http>>,
+    pub(crate) staking: Staking,
 }
 
 impl LitNodeClient {
-    pub fn new(config: LitNodeClientConfig) -> Self {
-        let http_client = Client::builder()
-            .timeout(config.connect_timeout)
-            .build()
-            .expect("Failed to create HTTP client");
-        let staking = staking_contract(config.lit_network);
+    pub async fn new(config: LitNodeClientConfig) -> Result<Self> {
+        let http_client = Client::builder().timeout(config.connect_timeout).build()?;
 
-        Self {
+        let rpc_url = match config.rpc_url {
+            Some(rpc_url) => rpc_url,
+            None => match config.lit_network.rpc_url() {
+                Some(rpc_url) => rpc_url.to_string(),
+                None => {
+                    return Err(eyre::eyre!(
+                        "RPC url not found for lit network that was specified"
+                    ));
+                }
+            },
+        };
+
+        let provider = ProviderBuilder::new().connect(&rpc_url).await?;
+        let staking_address = match config.lit_network.staking_contract_address() {
+            Some(staking_address) => staking_address,
+            None => {
+                return Err(eyre::eyre!(
+                    "Staking contract address not found for lit network that was specified"
+                ));
+            }
+        };
+
+        let staking = Staking::new(staking_address.parse::<Address>()?, provider);
+
+        Ok(Self {
             config,
             http_client,
             connection_state: Arc::new(DashMap::new()),
@@ -43,6 +71,6 @@ impl LitNodeClient {
             hd_root_pubkeys: None,
             latest_blockhash: None,
             staking,
-        }
+        })
     }
 }

@@ -1,8 +1,6 @@
-use crate::{
-    error::{Error, Result},
-    types::JsonSignSessionKeyResponseV1,
-};
+use crate::types::JsonSignSessionKeyResponseV1;
 use blsful::{Bls12381G2Impl, PublicKey, Signature, SignatureSchemes, TimeCryptCiphertext};
+use eyre::Result;
 
 pub fn combine(
     signature_shares: &[JsonSignSessionKeyResponseV1],
@@ -43,7 +41,7 @@ pub fn encrypt(encryption_key: &[u8], message: &[u8], identity: &[u8]) -> Result
 pub fn decrypt(ciphertext: &[u8], decryption_key: &[u8]) -> Result<Vec<u8>> {
     let dk = Signature::<Bls12381G2Impl>::try_from(decryption_key)?;
     let ciphertext: TimeCryptCiphertext<Bls12381G2Impl> = serde_bare::from_slice(ciphertext)?;
-    let message = Option::<Vec<u8>>::from(ciphertext.decrypt(&dk))
-        .ok_or(Error::Other("Unable to decrypt".to_string()))?;
+    let message =
+        Option::<Vec<u8>>::from(ciphertext.decrypt(&dk)).ok_or(eyre::eyre!("Unable to decrypt"))?;
     Ok(message)
 }
