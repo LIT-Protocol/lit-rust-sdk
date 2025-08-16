@@ -51,7 +51,7 @@ impl EthWalletProvider {
             "sig": sig_hex,
             "derivedVia": "web3.eth.personal.sign",
             "signedMessage": siwe_message,
-            "address": address
+            "address": address.to_checksum(None)
         });
 
         let auth_method = AuthMethod {
@@ -89,7 +89,7 @@ impl EthWalletProvider {
             sig: sig_hex,
             derived_via: "web3.eth.personal.sign".to_string(),
             signed_message: message_str,
-            address: format!("0x{:x}", address),
+            address: address.to_checksum(None),
             algo: None,
         })
     }

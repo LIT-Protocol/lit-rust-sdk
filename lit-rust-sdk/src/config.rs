@@ -22,7 +22,7 @@ impl LitNetwork {
 
     pub fn rpc_url(&self) -> Option<&'static str> {
         match self {
-            LitNetwork::DatilDev => Some("https://chain-rpc.litprotocol.com/http"),
+            LitNetwork::DatilDev => Some("https://yellowstone-rpc.litprotocol.com/"),
             LitNetwork::DatilTest => Some("https://yellowstone-rpc.litprotocol.com/"),
             LitNetwork::Datil => Some("https://yellowstone-rpc.litprotocol.com/"),
             LitNetwork::Custom => None,

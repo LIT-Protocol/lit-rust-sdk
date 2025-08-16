@@ -1,4 +1,3 @@
-use ethers::signers::Signer;
 use lit_rust_sdk::{
     auth::{load_wallet_from_env, EthWalletProvider},
     types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
@@ -32,7 +31,7 @@ async fn test_execute_js_hello_world() {
         }
     };
 
-    println!("🔑 Using wallet address: 0x{:x}", wallet.address());
+    println!("🔑 Using wallet address: {}", wallet.address());
 
     // Create client configuration
     let config = LitNodeClientConfig {
@@ -46,7 +45,7 @@ async fn test_execute_js_hello_world() {
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config);
+    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
 
     match client.connect().await {
         Ok(()) => {
@@ -106,7 +105,7 @@ async fn test_execute_js_hello_world() {
 
     // TODO: Create capacity delegation auth sig
     // println!("🔄 Creating capacity delegation auth sig...");
-    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // let delegatee_addresses = vec![wallet.address().to_string()];
     // let capacity_auth_sig = match client
     //     .create_capacity_delegation_auth_sig(
     //         &wallet,
@@ -293,7 +292,7 @@ go();
     };
 
     // Create and connect client
-    let mut client = LitNodeClient::new(config);
+    let mut client = LitNodeClient::new(config).await.expect("Failed to create client");
     client.connect().await.expect("Failed to connect");
 
     // Create auth method
@@ -302,7 +301,7 @@ go();
         .expect("Failed to create auth method");
 
     // // Create capacity delegation auth sig
-    // let delegatee_addresses = vec![format!("0x{:x}", wallet.address())];
+    // let delegatee_addresses = vec![wallet.address().to_string()];
     // let capacity_auth_sig = client
     //     .create_capacity_delegation_auth_sig(&wallet, &pkp_token_id, &delegatee_addresses, "10")
     //     .await
