@@ -2,7 +2,7 @@ use alloy::{network::EthereumWallet, primitives::U256, providers::ProviderBuilde
 use chrono::{Datelike, Duration as ChronoDuration, TimeZone, Utc};
 use lit_rust_sdk::{
     auth::{load_wallet_from_env, EthWalletProvider},
-    blockchain::{resolve_address, Contract, RateLimitNFT},
+    blockchain::{resolve_address, Contract, RateLimitNFT, PKPNFT},
     types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
     ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig,
 };
@@ -358,9 +358,10 @@ go();
 #[tokio::test]
 async fn test_execute_js_with_capacity_delegation_datil() {
     // This test validates the complete capacity delegation flow:
-    // 1. Mint a Rate Limit NFT
-    // 2. Create capacity delegation signature
-    // 3. Use it to execute a Lit Action
+    // 1. Mint a PKP NFT
+    // 2. Mint a Rate Limit NFT
+    // 3. Create capacity delegation signature delegating to the PKP
+    // 4. Use it to execute a Lit Action
 
     // Initialize tracing for debugging
     let _ = tracing_subscriber::fmt().try_init();
@@ -377,7 +378,109 @@ async fn test_execute_js_with_capacity_delegation_datil() {
 
     println!("🔑 Using wallet address: {}", wallet.address());
 
-    // Step 1: Mint a Rate Limit NFT inline for capacity delegation
+    let ethereum_wallet = EthereumWallet::from(wallet.clone());
+    let blockchain_provider = ProviderBuilder::new()
+        .wallet(ethereum_wallet)
+        .connect(LitNetwork::Datil.rpc_url())
+        .await
+        .expect("Failed to connect to Ethereum network");
+
+    // Step 1: Mint a PKP NFT for this test
+    println!("🔐 Minting PKP NFT for capacity delegation test...");
+
+    let pkp_nft_address = resolve_address(Contract::PKPNFT, LitNetwork::Datil)
+        .await
+        .expect("Failed to resolve PKP NFT contract address");
+
+    println!("PKP NFT contract address: {}", pkp_nft_address);
+
+    let pkp_nft = PKPNFT::new(pkp_nft_address, blockchain_provider.clone());
+
+    let mint_cost = pkp_nft
+        .mintCost()
+        .call()
+        .await
+        .expect("Failed to get PKP mint cost");
+
+    println!("💰 PKP mint cost: {} wei", mint_cost);
+
+    let key_type = U256::from(2); // ECDSA key type
+
+    let pkp_tx = pkp_nft.mintNext(key_type).value(mint_cost);
+    let pkp_pending_tx = pkp_tx
+        .send()
+        .await
+        .expect("Failed to send PKP mint transaction");
+
+    println!("✅ PKP mint transaction sent: {}", pkp_pending_tx.tx_hash());
+    println!("⏳ Waiting for PKP transaction to be mined...");
+
+    let pkp_receipt = pkp_pending_tx
+        .get_receipt()
+        .await
+        .expect("Failed to get PKP transaction receipt");
+
+    println!("✅ PKP minted in block: {:?}", pkp_receipt.block_number);
+
+    // Extract PKP details from the mint transaction
+    let mut pkp_token_id = None;
+    let mut pkp_public_key = None;
+    let mut pkp_eth_address = None;
+
+    // We know the transaction succeeded, so let's get the token ID
+    // The mintNext function emits events - we need to find the right token
+
+    // Since the logs might not be available, let's use a different approach
+    // Query the blockchain for PKP NFTs owned by our wallet
+    let balance = pkp_nft
+        .balanceOf(wallet.address())
+        .call()
+        .await
+        .expect("Failed to get PKP balance");
+
+    println!("📊 Wallet owns {} PKP NFTs", balance);
+
+    if balance > U256::ZERO {
+        // Get the last token owned by the wallet (most likely the one we just minted)
+        let token_index = balance - U256::from(1);
+        let token_id = pkp_nft
+            .tokenOfOwnerByIndex(wallet.address(), token_index)
+            .call()
+            .await
+            .expect("Failed to get token ID by index");
+
+        pkp_token_id = Some(token_id);
+        println!("🔐 Found PKP Token ID: {}", token_id);
+    }
+
+    // Now get the PKP details if we found the token ID
+    if let Some(token_id) = pkp_token_id {
+        // Get PKP public key and ETH address
+        let pub_key = pkp_nft
+            .getPubkey(token_id)
+            .call()
+            .await
+            .expect("Failed to get PKP public key");
+
+        pkp_public_key = Some(format!("0x{}", hex::encode(&pub_key)));
+
+        let eth_addr = pkp_nft
+            .getEthAddress(token_id)
+            .call()
+            .await
+            .expect("Failed to get PKP ETH address");
+
+        pkp_eth_address = Some(format!("{:?}", eth_addr));
+
+        println!("🔑 PKP Public Key: {}", pkp_public_key.as_ref().unwrap());
+        println!("🔑 PKP ETH Address: {}", pkp_eth_address.as_ref().unwrap());
+    }
+
+    let pkp_token_id = pkp_token_id.expect("Failed to extract PKP token ID");
+    let pkp_public_key = pkp_public_key.expect("Failed to get PKP public key");
+    let pkp_eth_address = pkp_eth_address.expect("Failed to get PKP ETH address");
+
+    // Step 2: Mint a Rate Limit NFT inline for capacity delegation
     println!("🎫 Minting Rate Limit NFT for capacity delegation test...");
 
     let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, LitNetwork::Datil)
@@ -388,13 +491,6 @@ async fn test_execute_js_with_capacity_delegation_datil() {
         "Rate Limit NFT contract address: {}",
         rate_limit_nft_address
     );
-
-    let ethereum_wallet = EthereumWallet::from(wallet.clone());
-    let blockchain_provider = ProviderBuilder::new()
-        .wallet(ethereum_wallet)
-        .connect(LitNetwork::Datil.rpc_url())
-        .await
-        .expect("Failed to connect to Ethereum network");
 
     let rate_limit_nft = RateLimitNFT::new(rate_limit_nft_address, blockchain_provider.clone());
 
@@ -503,9 +599,9 @@ async fn test_execute_js_with_capacity_delegation_datil() {
         }
     };
 
-    // Create capacity delegation auth sig
-    println!("🔄 Creating capacity delegation auth sig...");
-    let delegatee_addresses = vec![wallet.address().to_string()];
+    // Step 3: Create capacity delegation auth sig delegating to the PKP
+    println!("🔄 Creating capacity delegation auth sig delegating to PKP...");
+    let delegatee_addresses = vec![pkp_eth_address.clone()];
     let capacity_auth_sig = match EthWalletProvider::create_capacity_delegation_auth_sig(
         &wallet,
         &rate_limit_nft_token_id,
@@ -516,13 +612,15 @@ async fn test_execute_js_with_capacity_delegation_datil() {
     {
         Ok(sig) => {
             println!("✅ Created capacity delegation auth sig");
-            println!("📝 Capacity delegation signature: {:?}", sig);
+            println!(
+                "📝 Capacity delegation signature delegating to PKP: {:?}",
+                sig
+            );
+            println!("🔑 Delegated to PKP ETH Address: {}", pkp_eth_address);
             sig
         }
         Err(e) => {
-            println!("❌ Failed to create capacity delegation auth sig: {}", e);
-            println!("Skipping test - capacity delegation failed");
-            return;
+            panic!("❌ Failed to create capacity delegation auth sig: {}", e);
         }
     };
 
@@ -539,21 +637,14 @@ async fn test_execute_js_with_capacity_delegation_datil() {
     let expiration = chrono::Utc::now() + chrono::Duration::minutes(10);
     let expiration_str = expiration.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
-    // Get session signatures using capacity delegation
-    // For testing purposes, we'll use the PKP env vars or fallback to a test address
-    let pkp_public_key = std::env::var("PKP_PUBLIC_KEY").unwrap_or_else(|_| {
-        // This is a test public key - in reality you'd need a real PKP
-        "0x04d2688b6bc2ce7f9ba8b5c86a9eeaae3c8e8c7fb36b2c2e6c4b4b8f3c5e5a3b2d".to_string()
-    });
-
-    let pkp_eth_address = std::env::var("PKP_ETH_ADDRESS").unwrap_or_else(|_| {
-        // Use the wallet address as fallback for testing
-        wallet.address().to_string()
-    });
-
+    // Step 4: Get session signatures using capacity delegation with our minted PKP
     println!("🔄 Getting PKP session signatures with capacity delegation...");
     println!("   🔑 PKP Public Key: {}", pkp_public_key);
     println!("   🔑 PKP ETH Address: {}", pkp_eth_address);
+    println!(
+        "   🎫 Using Rate Limit NFT Token ID: {}",
+        rate_limit_nft_token_id
+    );
 
     let session_sigs = match client
         .get_pkp_session_sigs(
@@ -621,10 +712,14 @@ async fn test_execute_js_with_capacity_delegation_datil() {
             );
 
             println!("✅ All assertions passed!");
-            println!("🎉 CAPACITY DELEGATION SIGNATURE WORKS ON DATIL NETWORK!");
+            println!("🎉 CAPACITY DELEGATION WITH MINTED PKP WORKS ON DATIL NETWORK!");
             println!(
                 "🎫 Rate Limit NFT Token ID {} successfully provided capacity",
                 rate_limit_nft_token_id
+            );
+            println!(
+                "🔐 PKP Token ID {} successfully executed the Lit Action",
+                pkp_token_id
             );
         }
         Err(e) => {

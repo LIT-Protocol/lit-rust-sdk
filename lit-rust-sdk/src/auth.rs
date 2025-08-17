@@ -68,19 +68,65 @@ impl EthWalletProvider {
         delegatee_addresses: &[String],
         uses: &str,
     ) -> Result<AuthSig> {
+        
         let address = wallet.address();
 
-        // Create the capacity delegation message
-        let message = json!({
-            "capacityTokenId": capacity_token_id,
-            "delegateeAddresses": delegatee_addresses,
-            "uses": uses,
-            "expiration": chrono::Utc::now().timestamp() + 3600, // 1 hour from now
+        // Create nonce - use a random hex string
+        let nonce = format!("{}", hex::encode(&rand::random::<[u8; 16]>()));
+
+        // Create SIWE message for capacity delegation
+        let issued_at = chrono::Utc::now();
+        let expiration = issued_at + chrono::Duration::hours(24);
+
+        // Create the base SIWE message
+        let mut siwe_message = Message {
+            domain: "lit-protocol.com".parse().unwrap(),
+            address: address.0.into(),
+            statement: Some("Lit Protocol PKP sessionSig".to_string()),
+            uri: "lit:capability:delegation".parse().unwrap(),
+            version: "1".parse().unwrap(),
+            chain_id: 1,
+            nonce: nonce.clone(),
+            issued_at: issued_at.to_rfc3339().parse().unwrap(),
+            expiration_time: Some(expiration.to_rfc3339().parse().unwrap()),
+            not_before: None,
+            request_id: None,
+            resources: vec![],
+        };
+
+        // Create the ReCap object for capacity delegation
+        // Format: urn:recap:eyJ...base64 encoded JSON...
+        let recap_object = json!({
+            "att": {
+                format!("lit-ratelimitincrease://{}", capacity_token_id): {
+                    "rate-limit-increase-auth/1": [{
+                        "nft_id": [capacity_token_id],
+                        "delegate_to": delegatee_addresses.iter().map(|addr| {
+                            // Remove 0x prefix if present
+                            if addr.starts_with("0x") {
+                                &addr[2..]
+                            } else {
+                                addr
+                            }
+                        }).collect::<Vec<_>>(),
+                        "uses": uses
+                    }]
+                }
+            },
+            "prf": []
         });
+        
+        // Convert recap to base64 and create the resource URI
+        let recap_json = serde_json::to_string(&recap_object)?;
+        let recap_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, recap_json.as_bytes());
+        let recap_uri = format!("urn:recap:{}", recap_base64);
+        
+        siwe_message.resources = vec![recap_uri.parse().unwrap()];
 
-        let message_str = message.to_string();
+        // Prepare the message string
+        let message_str = siwe_message.to_string();
 
-        // Sign the message
+        // Sign the SIWE message
         let signature = wallet.sign_message(&message_str.as_bytes()).await?;
 
         let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
