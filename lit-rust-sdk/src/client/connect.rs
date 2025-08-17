@@ -23,15 +23,17 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         let validators = network_info._2;
         let mut bootstrap_urls = Vec::with_capacity(validators.len());
         for validator in validators {
-            let prefix = if validator.port == 443 {
-                "https"
-            } else {
-                "http"
-            };
-            bootstrap_urls.push(format!("{}://{}:{}", prefix, validator.ip, validator.port));
+            // Convert validator.ip (u32) to standard IPv4 string
+            let ip_addr = std::net::Ipv4Addr::from(validator.ip);
+            bootstrap_urls.push(format!("https://{}:{}", ip_addr, validator.port));
         }
 
-        let min_node_count = self.config.min_node_count.unwrap_or(2);
+        let min_node_count = network_info._1.to::<usize>();
+        self.min_node_count = Some(min_node_count);
+
+        let epoch = network_info._0;
+        self.epoch = Some(epoch);
+
         self.handshake_with_nodes(bootstrap_urls, min_node_count)
             .await?;
 
