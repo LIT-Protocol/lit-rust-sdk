@@ -1,7 +1,7 @@
 mod contract_resolver;
 mod pkp_nft;
 mod rate_limit_nft;
-mod staking;
+pub mod staking;
 
 pub use contract_resolver::ContractResolver;
 use eyre::Result;
