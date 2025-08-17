@@ -34,8 +34,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         let epoch = network_info._0;
         self.epoch = Some(epoch);
 
-        self.handshake_with_nodes(bootstrap_urls, min_node_count)
-            .await?;
+        self.handshake_with_nodes(bootstrap_urls).await?;
 
         self.update_network_state_from_consensus();
         self.ready = true;
@@ -54,9 +53,9 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         Ok(network_info)
     }
 
-    async fn handshake_with_nodes(&mut self, urls: Vec<String>, min_count: usize) -> Result<()> {
+    async fn handshake_with_nodes(&mut self, urls: Vec<String>) -> Result<()> {
         let mut successful_connections = 0;
-        for url in urls {
+        for url in urls.clone() {
             match self.handshake_with_node(&url).await {
                 Ok(response) => {
                     info!("Successfully connected to node: {}", url);
@@ -75,10 +74,11 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
             }
         }
 
-        if successful_connections < min_count {
+        if successful_connections < urls.len() {
             return Err(eyre::eyre!(format!(
                 "Not enough nodes connected. Connected: {}, Required: {}",
-                successful_connections, min_count
+                successful_connections,
+                urls.len()
             )));
         }
         Ok(())

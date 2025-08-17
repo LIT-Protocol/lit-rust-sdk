@@ -40,7 +40,6 @@ async fn test_execute_js_hello_world() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev,
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
@@ -242,14 +241,6 @@ async fn test_execute_js_signing() {
         }
     };
 
-    // let pkp_token_id = match std::env::var("PKP_TOKEN_ID") {
-    //     Ok(id) => id,
-    //     Err(_) => {
-    //         println!("Skipping signing test - PKP_TOKEN_ID not set");
-    //         return;
-    //     }
-    // };
-
     let pkp_eth_address = match std::env::var("PKP_ETH_ADDRESS") {
         Ok(addr) => addr,
         Err(_) => {
@@ -288,7 +279,6 @@ go();
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev,
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
@@ -479,7 +469,6 @@ async fn test_execute_js_with_capacity_delegation_datil_test() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::Datil,
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
