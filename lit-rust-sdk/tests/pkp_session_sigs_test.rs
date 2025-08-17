@@ -25,7 +25,6 @@ async fn test_get_pkp_session_sigs() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev, // Using dev network for testing
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,

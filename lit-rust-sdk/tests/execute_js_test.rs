@@ -356,12 +356,11 @@ go();
 }
 
 #[tokio::test]
-async fn test_execute_js_with_capacity_delegation_datil_test() {
+async fn test_execute_js_with_capacity_delegation_datil() {
     // This test validates the complete capacity delegation flow:
     // 1. Mint a Rate Limit NFT
     // 2. Create capacity delegation signature
     // 3. Use it to execute a Lit Action
-    // Note: Using datil-dev for connectivity, but the pattern works for datil-test
 
     // Initialize tracing for debugging
     let _ = tracing_subscriber::fmt().try_init();
@@ -582,12 +581,12 @@ async fn test_execute_js_with_capacity_delegation_datil_test() {
             println!("❌ Failed to get session signatures: {}", e);
             println!("This test validates that the capacity delegation signature is correct");
             println!("If this fails, it means the signature format or Rate Limit NFT is invalid");
-            panic!("Capacity delegation test failed - signature rejected by datil-test network");
+            panic!("Capacity delegation test failed - signature rejected by datil network");
         }
     };
 
     // Now execute the Lit Action with the capacity delegation!
-    println!("🚀 Executing Lit Action with Rate Limit NFT capacity delegation on datil-test...");
+    println!("🚀 Executing Lit Action with Rate Limit NFT capacity delegation on datil...");
     let execute_params = ExecuteJsParams {
         code: Some(HELLO_WORLD_LIT_ACTION.to_string()),
         ipfs_id: None,
@@ -598,7 +597,7 @@ async fn test_execute_js_with_capacity_delegation_datil_test() {
 
     match client.execute_js(execute_params).await {
         Ok(response) => {
-            println!("🎉 Lit Action executed successfully with Rate Limit NFT capacity delegation on datil-test!");
+            println!("🎉 Lit Action executed successfully with Rate Limit NFT capacity delegation on datil!");
             println!("📤 Response: {:?}", response.response);
             println!("📜 Logs: {}", response.logs);
 
@@ -622,7 +621,7 @@ async fn test_execute_js_with_capacity_delegation_datil_test() {
             );
 
             println!("✅ All assertions passed!");
-            println!("🎉 CAPACITY DELEGATION SIGNATURE WORKS ON DATIL-TEST NETWORK!");
+            println!("🎉 CAPACITY DELEGATION SIGNATURE WORKS ON DATIL NETWORK!");
             println!(
                 "🎫 Rate Limit NFT Token ID {} successfully provided capacity",
                 rate_limit_nft_token_id
