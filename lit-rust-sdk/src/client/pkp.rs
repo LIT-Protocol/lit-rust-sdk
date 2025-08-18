@@ -181,7 +181,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         .await
     }
 
-    async fn get_latest_ethereum_blockhash(&self) -> Result<String> {
+    pub async fn get_latest_ethereum_blockhash(&self) -> Result<String> {
         let rpc_url = std::env::var("ETHEREUM_RPC_URL").map_err(|_| {
             eyre::eyre!("ETHEREUM_RPC_URL environment variable not set".to_string())
         })?;

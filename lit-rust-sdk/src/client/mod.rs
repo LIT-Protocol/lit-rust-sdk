@@ -8,6 +8,7 @@ use std::sync::Arc;
 mod connect;
 mod execute;
 mod pkp;
+mod session_sigs;
 mod state;
 
 use crate::blockchain::staking::LibStakingStorage::Epoch;
