@@ -1,4 +1,4 @@
-use alloy::{network::EthereumWallet, primitives::U256, providers::ProviderBuilder};
+use alloy::{network::EthereumWallet, primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
 use chrono::{Datelike, Duration as ChronoDuration, TimeZone, Utc};
 use lit_rust_sdk::{
     auth::{load_wallet_from_env, EthWalletProvider},
@@ -727,6 +727,268 @@ async fn test_execute_js_with_capacity_delegation_datil() {
             println!("This indicates the capacity delegation signature was accepted but execution failed");
             println!("Check the Rate Limit NFT has sufficient capacity remaining");
             panic!("Lit Action execution failed despite valid capacity delegation");
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_execute_js_with_auth_methods() {
+    // This test demonstrates how to pass multiple auth methods to a Lit Action
+    // and access them via Lit.Auth
+    
+    // Initialize tracing for debugging
+    let _ = tracing_subscriber::fmt().try_init();
+
+    // Load main wallet from environment
+    let main_wallet = match load_wallet_from_env() {
+        Ok(w) => w,
+        Err(e) => {
+            println!("❌ Failed to load wallet from environment: {}. Make sure ETHEREUM_PRIVATE_KEY is set in .env", e);
+            println!("Skipping test - required environment variables not set");
+            return;
+        }
+    };
+
+    println!("🔑 Using main wallet address: {}", main_wallet.address());
+
+    // Create 3 additional random wallets
+    println!("🎲 Creating 3 random wallets for auth methods...");
+    
+    let wallet1 = PrivateKeySigner::random();
+    let wallet2 = PrivateKeySigner::random();
+    let wallet3 = PrivateKeySigner::random();
+    
+    println!("  📱 Wallet 1: {}", wallet1.address());
+    println!("  📱 Wallet 2: {}", wallet2.address());
+    println!("  📱 Wallet 3: {}", wallet3.address());
+
+    // Create client configuration
+    let config = LitNodeClientConfig {
+        lit_network: LitNetwork::DatilDev,
+        alert_when_unauthorized: true,
+        debug: true,
+        connect_timeout: Duration::from_secs(30),
+        check_node_attestation: false,
+    };
+
+    // Create and connect client
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
+
+    match client.connect().await {
+        Ok(()) => {
+            println!("✅ Connected to Lit Network");
+        }
+        Err(e) => {
+            panic!("❌ Failed to connect to Lit Network: {}", e);
+        }
+    }
+
+    // Load PKP environment variables
+    let pkp_public_key = match std::env::var("PKP_PUBLIC_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            println!("❌ PKP_PUBLIC_KEY environment variable not set");
+            println!("Skipping test - required environment variables not set");
+            return;
+        }
+    };
+
+    let pkp_eth_address = match std::env::var("PKP_ETH_ADDRESS") {
+        Ok(addr) => addr,
+        Err(_) => {
+            println!("❌ PKP_ETH_ADDRESS environment variable not set");
+            println!("Skipping test - required environment variables not set");
+            return;
+        }
+    };
+
+    println!("🔑 Using PKP public key: {}", pkp_public_key);
+    println!("🔑 Using PKP ETH address: {}", pkp_eth_address);
+
+    // Create auth method for the main wallet (for session signature generation)
+    println!("🔄 Creating auth method for main wallet...");
+    let main_auth_method = match EthWalletProvider::authenticate(&main_wallet, &client).await {
+        Ok(method) => {
+            println!("✅ Created main auth method");
+            method
+        }
+        Err(e) => {
+            println!("❌ Failed to create main auth method: {}", e);
+            println!("Skipping test - auth method creation failed");
+            return;
+        }
+    };
+
+    // Create auth methods for the three additional wallets
+    println!("🔄 Creating auth methods for additional wallets...");
+    
+    let auth_method1 = match EthWalletProvider::authenticate(&wallet1, &client).await {
+        Ok(method) => {
+            println!("✅ Created auth method for wallet 1");
+            method
+        }
+        Err(e) => {
+            panic!("❌ Failed to create auth method for wallet 1: {}", e);
+        }
+    };
+
+    let auth_method2 = match EthWalletProvider::authenticate(&wallet2, &client).await {
+        Ok(method) => {
+            println!("✅ Created auth method for wallet 2");
+            method
+        }
+        Err(e) => {
+            panic!("❌ Failed to create auth method for wallet 2: {}", e);
+        }
+    };
+
+    let auth_method3 = match EthWalletProvider::authenticate(&wallet3, &client).await {
+        Ok(method) => {
+            println!("✅ Created auth method for wallet 3");
+            method
+        }
+        Err(e) => {
+            panic!("❌ Failed to create auth method for wallet 3: {}", e);
+        }
+    };
+
+    // Combine the additional auth methods
+    let additional_auth_methods = vec![auth_method1, auth_method2, auth_method3];
+
+    // Create resource ability requests for Lit Action execution
+    let resource_ability_requests = vec![LitResourceAbilityRequest {
+        resource: LitResourceAbilityRequestResource {
+            resource: "*".to_string(),
+            resource_prefix: "lit-litaction".to_string(),
+        },
+        ability: LitAbility::LitActionExecution.to_string(),
+    }];
+
+    // Set expiration to 10 minutes from now
+    let expiration = chrono::Utc::now() + chrono::Duration::minutes(10);
+    let expiration_str = expiration.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+    // Get PKP session signatures
+    println!("🔄 Getting PKP session signatures...");
+    let session_sigs = match client
+        .get_pkp_session_sigs(
+            &pkp_public_key,
+            &pkp_eth_address,
+            vec![],
+            vec![main_auth_method],
+            resource_ability_requests,
+            &expiration_str,
+        )
+        .await
+    {
+        Ok(session_sigs) => {
+            println!("✅ Got PKP session signatures!");
+            println!("📊 Number of session signatures: {}", session_sigs.len());
+            session_sigs
+        }
+        Err(e) => {
+            println!("❌ Failed to get PKP session signatures: {}", e);
+            println!("Skipping test - session signature generation failed");
+            return;
+        }
+    };
+
+    // Create a Lit Action that logs the Lit.Auth object
+    let lit_action_code = r#"
+const go = async () => {
+    console.log("=== Lit.Auth Contents ===");
+    
+    // Log the entire Lit.Auth object
+    console.log("Lit.Auth object:", JSON.stringify(Lit.Auth, null, 2));
+    
+    // Check if we have auth method contexts
+    if (Lit.Auth && Lit.Auth.authMethodContexts && Array.isArray(Lit.Auth.authMethodContexts)) {
+        const authMethods = Lit.Auth.authMethodContexts;
+        console.log(`Found ${authMethods.length} auth method contexts`);
+        
+        // Log details of each auth method context
+        authMethods.forEach((authContext, index) => {
+            console.log(`\nAuth Method Context ${index + 1}:`);
+            console.log(`  User ID (Address): ${authContext.userId}`);
+            console.log(`  App ID: ${authContext.appId}`);
+            console.log(`  Auth Method Type: ${authContext.authMethodType}`);
+            console.log(`  Used for Session Key: ${authContext.usedForSignSessionKeyRequest}`);
+        });
+        
+        // Also log the authSigAddress if present
+        if (Lit.Auth.authSigAddress) {
+            console.log(`\nAuth Sig Address: ${Lit.Auth.authSigAddress}`);
+        }
+    } else {
+        console.log("No auth method contexts found in Lit.Auth");
+    }
+    
+    // Return a response indicating success
+    Lit.Actions.setResponse({ 
+        response: "Successfully logged Lit.Auth contents",
+        authMethodCount: Lit.Auth && Lit.Auth.authMethodContexts ? Lit.Auth.authMethodContexts.length : 0
+    });
+};
+
+go();
+"#;
+
+    // Execute the Lit Action with additional auth methods
+    println!("🚀 Executing Lit Action with additional auth methods...");
+    let execute_params = ExecuteJsParams {
+        code: Some(lit_action_code.to_string()),
+        ipfs_id: None,
+        session_sigs,
+        auth_methods: Some(additional_auth_methods),
+        js_params: None,
+    };
+
+    match client.execute_js(execute_params).await {
+        Ok(response) => {
+            println!("🎉 Lit Action executed successfully!");
+            println!("📤 Response: {:?}", response.response);
+            println!("📜 Logs:\n{}", response.logs);
+
+            // Verify we got the expected response
+            if let Some(response_obj) = response.response.as_object() {
+                if let Some(auth_count) = response_obj.get("authMethodCount") {
+                    let count = auth_count.as_u64().unwrap_or(0);
+                    assert_eq!(
+                        count, 3,
+                        "Expected 3 auth methods, got {}",
+                        count
+                    );
+                    println!("✅ Confirmed: {} auth methods were accessible in Lit.Auth", count);
+                }
+            }
+
+            // Verify logs contain information about auth method contexts
+            assert!(
+                response.logs.contains("Auth Method Context"),
+                "Logs should contain auth method context information"
+            );
+            
+            // Verify each wallet address appears in the logs (check full address with 0x prefix)
+            assert!(
+                response.logs.contains(&wallet1.address().to_string()),
+                "Logs should contain wallet 1 address"
+            );
+            assert!(
+                response.logs.contains(&wallet2.address().to_string()),
+                "Logs should contain wallet 2 address"
+            );
+            assert!(
+                response.logs.contains(&wallet3.address().to_string()),
+                "Logs should contain wallet 3 address"
+            );
+
+            println!("✅ All assertions passed!");
+            println!("🎯 Successfully demonstrated passing auth methods to Lit Action!");
+        }
+        Err(e) => {
+            panic!("❌ Lit Action execution failed: {}", e);
         }
     }
 }
