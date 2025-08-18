@@ -2,6 +2,15 @@
 name = "lit-rust-sdk"
 version = "0.1.0"
 edition = "2021"
+authors = ["Lit Protocol"]
+description = "Native Rust SDK for Lit Protocol - distributed key management and programmable signing"
+documentation = "https://docs.rs/lit-rust-sdk"
+homepage = "https://litprotocol.com"
+repository = "https://github.com/LIT-Protocol/rust-sdk"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["lit", "protocol", "pkp", "signing", "distributed"]
+categories = ["cryptography", "authentication", "web-programming"]
 
 [dependencies]
 tokio = { version = "1.40", features = ["full"] }
