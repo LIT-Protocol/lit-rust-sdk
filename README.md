@@ -6,6 +6,7 @@ Currently in Beta and only supports Datil, DatilDev, and DatilTest networks.
 
 ## Features
 
+- **Local Session Signatures**: Execute Lit Actions using only your Ethereum wallet (no PKP required)
 - **PKP Management**: Mint and manage Programmable Key Pairs (PKPs)
 - **Session Signatures**: Generate and manage session signatures for authentication
 - **Lit Actions**: Execute JavaScript code on the Lit Network with access to PKP signing capabilities
@@ -53,7 +54,83 @@ async fn main() {
 }
 ```
 
-### Executing a Lit Action
+### Executing a Lit Action (Simple Approach - No PKP Required)
+
+For most use cases, you can execute Lit Actions using only your Ethereum wallet without needing to mint PKPs:
+
+```rust
+use lit_rust_sdk::{
+    auth::load_wallet_from_env,
+    types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
+    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig,
+};
+use std::time::Duration;
+
+const HELLO_WORLD_LIT_ACTION: &str = r#"
+const go = async () => {
+  console.log("Hello from Lit Action!");
+  Lit.Actions.setResponse({ response: "Hello World from Rust SDK!" });
+};
+go();
+"#;
+
+#[tokio::main]
+async fn main() {
+    // Load wallet from environment variable
+    let wallet = load_wallet_from_env()
+        .expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
+
+    // Configure and connect to Lit Network
+    let config = LitNodeClientConfig {
+        lit_network: LitNetwork::DatilDev,
+        alert_when_unauthorized: true,
+        debug: true,
+        connect_timeout: Duration::from_secs(30),
+        check_node_attestation: false,
+    };
+
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
+
+    client.connect().await.expect("Failed to connect");
+
+    // Create resource ability requests for Lit Action execution
+    let resource_ability_requests = vec![LitResourceAbilityRequest {
+        resource: LitResourceAbilityRequestResource {
+            resource: "*".to_string(),
+            resource_prefix: "lit-litaction".to_string(),
+        },
+        ability: LitAbility::LitActionExecution.to_string(),
+    }];
+
+    // Generate session signatures with your wallet (no PKP needed!)
+    let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+    let session_sigs = client
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .await
+        .expect("Failed to create local session signatures");
+
+    // Execute the Lit Action
+    let execute_params = ExecuteJsParams {
+        code: Some(HELLO_WORLD_LIT_ACTION.to_string()),
+        ipfs_id: None,
+        session_sigs,
+        auth_methods: None,
+        js_params: None,
+    };
+
+    let response = client
+        .execute_js(execute_params)
+        .await
+        .expect("Failed to execute Lit Action");
+
+    println!("Response: {:?}", response.response);
+    println!("Logs: {}", response.logs);
+}
+```
+
+### Executing a Lit Action (With PKP Signing)
 
 ```rust
 use lit_rust_sdk::{
@@ -178,6 +255,72 @@ let session_sigs = client
     )
     .await?;
 ```
+
+### Local Session Signatures (No PKP Required)
+
+For simpler use cases where you don't need PKP signing capabilities, you can create session signatures directly with your wallet. This allows you to execute Lit Actions without minting or managing PKPs.
+
+```rust
+use lit_rust_sdk::{
+    auth::load_wallet_from_env,
+    types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
+    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig,
+};
+
+// Load your Ethereum wallet
+let wallet = load_wallet_from_env().expect("Failed to load wallet");
+
+// Create resource ability requests for Lit Action execution
+let resource_ability_requests = vec![LitResourceAbilityRequest {
+    resource: LitResourceAbilityRequestResource {
+        resource: "*".to_string(),
+        resource_prefix: "lit-litaction".to_string(),
+    },
+    ability: LitAbility::LitActionExecution.to_string(),
+}];
+
+// Set expiration for session signatures
+let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+
+// Generate local session signatures using only your wallet
+let session_sigs = client
+    .get_local_session_sigs(
+        &wallet,
+        resource_ability_requests,
+        &expiration,
+    )
+    .await?;
+
+// Execute Lit Actions with these session signatures
+let lit_action_code = r#"
+const go = async () => {
+  console.log("Hello from Lit Action!");
+  Lit.Actions.setResponse({ response: "Executed without PKP!" });
+};
+go();
+"#;
+
+let execute_params = ExecuteJsParams {
+    code: Some(lit_action_code.to_string()),
+    ipfs_id: None,
+    session_sigs,
+    auth_methods: None,
+    js_params: None,
+};
+
+let response = client.execute_js(execute_params).await?;
+```
+
+**Benefits of Local Session Signatures:**
+- **No PKP Required**: Execute Lit Actions using only your Ethereum wallet
+- **Simpler Setup**: No need to mint PKPs or manage distributed keys
+- **Cost Effective**: Avoid PKP minting costs for basic Lit Action execution
+- **Quick Start**: Ideal for testing and simple automation tasks
+
+**Limitations:**
+- No access to PKP signing capabilities within Lit Actions
+- Cannot use `Lit.Actions.signEcdsa()` or other PKP-specific functions
+- Suitable for computation, data processing, and API calls, but not for signing operations
 
 ### Lit Actions
 
@@ -330,7 +473,8 @@ The main client for interacting with the Lit Network.
 - `connected_nodes() -> Vec<String>` - Get list of connected node URLs
 - `get_connection_state() -> ConnectionState` - Get detailed connection state
 - `execute_js(params: ExecuteJsParams) -> Result<ExecuteJsResponse>` - Execute a Lit Action
-- `get_pkp_session_sigs(...) -> Result<SessionSignatures>` - Generate session signatures
+- `get_pkp_session_sigs(...) -> Result<SessionSignatures>` - Generate session signatures with PKP
+- `get_local_session_sigs(wallet: &PrivateKeySigner, resource_ability_requests: Vec<LitResourceAbilityRequest>, expiration: &str) -> Result<SessionSignatures>` - Generate session signatures without PKP
 
 ### Authentication
 
@@ -377,6 +521,13 @@ See `tests/execute_js_test.rs::test_execute_js_with_capacity_delegation_datil` f
 3. Creates capacity delegation
 4. Generates session signatures
 5. Executes a Lit Action
+
+### Local Session Signatures (No PKP)
+
+See `tests/local_session_sigs_test.rs` for examples of executing Lit Actions without PKPs:
+
+- `test_local_session_sigs_hello_world` - Basic Lit Action execution with local session signatures
+- `test_local_session_sigs_with_params` - Advanced Lit Action with computations and parameters
 
 ### Authentication Methods
 

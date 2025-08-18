@@ -6,6 +6,7 @@ Currently in Beta and only supports Datil, DatilDev, and DatilTest networks.
 
 ## Features
 
+- **Local Session Signatures**: Execute Lit Actions using only your Ethereum wallet (no PKP required)
 - **PKP Management**: Mint and manage Programmable Key Pairs (PKPs)
 - **Session Signatures**: Generate and manage session signatures for authentication
 - **Lit Actions**: Execute JavaScript code on the Lit Network with access to PKP signing capabilities
@@ -25,12 +26,22 @@ tokio = { version = "1.40", features = ["full"] }
 
 ## Quick Start
 
+Execute a Lit Action using only your Ethereum wallet (no PKP required):
+
 ```rust
-use lit_rust_sdk::{LitNetwork, LitNodeClient, LitNodeClientConfig};
+use lit_rust_sdk::{
+    auth::load_wallet_from_env,
+    types::{LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
+    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig,
+};
 use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
+    // Load wallet from environment variable
+    let wallet = load_wallet_from_env()
+        .expect("Set ETHEREUM_PRIVATE_KEY environment variable");
+
     // Configure and connect to Lit Network
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev,
@@ -46,7 +57,40 @@ async fn main() {
 
     client.connect().await.expect("Failed to connect");
 
-    println!("Connected to {} nodes", client.connected_nodes().len());
+    // Create session signatures without PKP
+    let resource_ability_requests = vec![LitResourceAbilityRequest {
+        resource: LitResourceAbilityRequestResource {
+            resource: "*".to_string(),
+            resource_prefix: "lit-litaction".to_string(),
+        },
+        ability: LitAbility::LitActionExecution.to_string(),
+    }];
+
+    let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+    let session_sigs = client
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .await
+        .expect("Failed to create session signatures");
+
+    // Execute Lit Action
+    let execute_params = ExecuteJsParams {
+        code: Some(r#"
+            const go = async () => {
+                console.log("Hello from Lit Action!");
+                Lit.Actions.setResponse({ response: "Hello World!" });
+            };
+            go();
+        "#.to_string()),
+        ipfs_id: None,
+        session_sigs,
+        auth_methods: None,
+        js_params: None,
+    };
+
+    let response = client.execute_js(execute_params).await
+        .expect("Failed to execute Lit Action");
+
+    println!("Response: {:?}", response.response);
 }
 ```
 
