@@ -29,7 +29,7 @@ chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 ed25519-dalek = "2.1"
 siwe = "0.5"
-siwe-recap = { git = "https://github.com/spruceid/siwe-recap" }
+siwe-recap = "0.2.0"
 blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
 elliptic-curve = "0.13"
 futures = "0.3"
