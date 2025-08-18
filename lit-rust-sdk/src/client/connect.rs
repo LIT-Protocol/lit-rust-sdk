@@ -34,7 +34,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         let epoch = network_info._0;
         self.epoch = Some(epoch);
 
-        self.handshake_with_nodes(bootstrap_urls).await?;
+        self.handshake_with_nodes(&bootstrap_urls).await?;
 
         self.update_network_state_from_consensus();
         self.ready = true;
@@ -53,9 +53,9 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         Ok(network_info)
     }
 
-    async fn handshake_with_nodes(&mut self, urls: Vec<String>) -> Result<()> {
+    async fn handshake_with_nodes(&mut self, urls: &[String]) -> Result<()> {
         let mut successful_connections = 0;
-        for url in urls.clone() {
+        for url in urls {
             match self.handshake_with_node(&url).await {
                 Ok(response) => {
                     info!("Successfully connected to node: {}", url);
