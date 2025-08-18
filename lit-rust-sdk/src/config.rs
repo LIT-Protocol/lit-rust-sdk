@@ -61,7 +61,6 @@ impl LitNetwork {
 pub struct LitNodeClientConfig {
     pub lit_network: LitNetwork,
     pub alert_when_unauthorized: bool,
-    pub min_node_count: Option<usize>,
     pub debug: bool,
     pub connect_timeout: Duration,
     pub check_node_attestation: bool,
@@ -72,7 +71,6 @@ impl Default for LitNodeClientConfig {
         Self {
             lit_network: LitNetwork::DatilDev,
             alert_when_unauthorized: true,
-            min_node_count: None,
             debug: false,
             connect_timeout: Duration::from_millis(20000),
             check_node_attestation: false,

@@ -10,6 +10,7 @@ mod execute;
 mod pkp;
 mod state;
 
+use crate::blockchain::staking::LibStakingStorage::Epoch;
 use crate::blockchain::Staking;
 
 pub struct LitNodeClient<P = DynProvider>
@@ -26,6 +27,8 @@ where
     pub(crate) hd_root_pubkeys: Option<Vec<String>>,
     pub(crate) latest_blockhash: Option<String>,
     pub(crate) staking: Staking::StakingInstance<P>,
+    pub(crate) min_node_count: Option<usize>,
+    pub(crate) epoch: Option<Epoch>,
 }
 
 impl LitNodeClient<DynProvider> {
@@ -49,6 +52,8 @@ impl LitNodeClient<DynProvider> {
             hd_root_pubkeys: None,
             latest_blockhash: None,
             staking,
+            min_node_count: None,
+            epoch: None,
         })
     }
 }

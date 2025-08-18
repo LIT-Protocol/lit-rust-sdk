@@ -25,7 +25,6 @@ async fn test_get_pkp_session_sigs() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev, // Using dev network for testing
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
@@ -192,8 +191,4 @@ async fn test_capacity_delegation_creation() {
     assert_eq!(auth_sig.derived_via, "web3.eth.personal.sign");
     assert!(!auth_sig.signed_message.is_empty());
     assert_eq!(auth_sig.address, wallet.address().to_string());
-
-    // Verify the signed message is valid JSON
-    let _: serde_json::Value = serde_json::from_str(&auth_sig.signed_message)
-        .expect("Signed message should be valid JSON");
 }

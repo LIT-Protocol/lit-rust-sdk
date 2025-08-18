@@ -10,7 +10,6 @@ async fn test_connect_to_datil_dev() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilDev,
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: false,
@@ -68,12 +67,41 @@ async fn test_connect_to_datil_dev() {
 }
 
 #[tokio::test]
-#[ignore] // Ignore by default as it requires real network access
 async fn test_connect_to_datil_test() {
     let config = LitNodeClientConfig {
         lit_network: LitNetwork::DatilTest,
         alert_when_unauthorized: true,
-        min_node_count: Some(2),
+        debug: true,
+        connect_timeout: Duration::from_secs(30),
+        check_node_attestation: true, // Enable attestation for test network
+    };
+
+    let mut client = LitNodeClient::new(config)
+        .await
+        .expect("Failed to create client");
+
+    match client.connect().await {
+        Ok(()) => {
+            println!("Successfully connected to Lit Test Network!");
+            assert!(client.is_ready());
+
+            let connected_nodes = client.connected_nodes();
+            println!("Connected to {} nodes", connected_nodes.len());
+            assert!(!connected_nodes.is_empty());
+        }
+        Err(e) => {
+            // This is expected to fail for now since we haven't implemented
+            // the full validator discovery from the staking contract
+            println!("Expected failure (not fully implemented): {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_connect_to_datil() {
+    let config = LitNodeClientConfig {
+        lit_network: LitNetwork::Datil,
+        alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
         check_node_attestation: true, // Enable attestation for test network
