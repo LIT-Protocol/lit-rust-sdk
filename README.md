@@ -1,6 +1,7 @@
 # Lit Protocol Rust SDK
 
 [![CI](https://github.com/LIT-Protocol/lit-rust-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/LIT-Protocol/lit-rust-sdk/actions/workflows/ci.yml)
+[![Documentation](https://docs.rs/lit-rust-sdk/badge.svg)](https://docs.rs/lit-rust-sdk/latest/lit_rust_sdk/)
 
 A native Rust implementation of the Lit Protocol SDK, providing programmatic access to the Lit Network for distributed key management, conditional access control, and programmable signing.
 
