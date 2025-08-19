@@ -589,12 +589,12 @@ See LICENSE file in the repository root.
 
 - [Lit Protocol Documentation](https://developer.litprotocol.com/)
 - [JavaScript SDK API Reference](https://v7-api-doc-lit-js-sdk.vercel.app/)
-- [GitHub Repository](https://github.com/LIT-Protocol/rust-sdk)
+- [GitHub Repository](https://github.com/LIT-Protocol/lit-rust-sdk)
 
 ## Support
 
 For issues and questions:
 
 - Open an issue on GitHub
-- Visit the [Lit Protocol Discord](https://discord.gg/lit-protocol)
+- Visit the [Lit Protocol Discord](https://litgateway.com/discord)
 - Check the [official documentation](https://developer.litprotocol.com/)
