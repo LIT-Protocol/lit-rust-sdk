@@ -23,7 +23,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-lit-rust-sdk = { path = "./lit-rust-sdk" }
+lit-rust-sdk = "0.2.0"
 tokio = { version = "1.40", features = ["full"] }
 ```
 
