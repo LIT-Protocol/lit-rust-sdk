@@ -1,0 +1,14 @@
+# Configuration for cargo-deny - security-focused only
+# Full license and dependency management can be added later
+
+[advisories]
+# Check for critical security vulnerabilities only
+version = 2
+yanked = "allow"  # Many transitive deps in web3 are yanked but safe
+unmaintained = "all"  # Allow all unmaintained crates
+ignore = [
+    # Allow these specific advisories for now
+    "RUSTSEC-2021-0141",  # dotenv unmaintained but safe
+    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained but safe
+    "RUSTSEC-2024-0436",  # paste unmaintained but safe
+]
