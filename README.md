@@ -558,30 +558,6 @@ Common issues and solutions:
 - **"Invalid signature"**: Verify PKP public key format (should include 0x prefix)
 - **"Rate limit exceeded"**: Ensure Rate Limit NFT has sufficient capacity
 
-## CI/Development
-
-The repository includes comprehensive GitHub Actions workflows for testing and validation:
-
-### CI Pipeline
-
-- **Basic CI** (`ci.yml`): Runs on every push/PR with formatting, clippy, unit tests, and all integration tests
-- **Documentation** (`docs.yml`): Validates README files and builds documentation
-- **Release Tests** (`release.yml`): Full test suite that can be run manually for release testing
-
-### Required GitHub Secrets
-
-For CI to work properly, the following secrets must be configured in the repository:
-
-```bash
-ETHEREUM_PRIVATE_KEY    # Private key for test wallet (should have test ETH)
-PKP_PUBLIC_KEY         # Existing PKP public key for tests (optional)
-PKP_TOKEN_ID           # Existing PKP token ID for tests (optional)
-PKP_ETH_ADDRESS        # Existing PKP Ethereum address for tests (optional)
-ETHEREUM_RPC_URL       # RPC URL for Ethereum/L2 network interactions
-```
-
-**Note**: The CI will work with just `ETHEREUM_PRIVATE_KEY` and `ETHEREUM_RPC_URL` for basic tests. PKP-related secrets are only needed for advanced tests.
-
 ## Contributing
 
 Contributions are welcome! Please ensure all tests pass before submitting a PR:
