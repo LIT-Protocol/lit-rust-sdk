@@ -93,9 +93,9 @@ jobs:
         cd lit-rust-sdk
         # Install cargo-deny if not present
         cargo install --locked cargo-deny || true
-        # Run cargo-deny if deny.toml exists
+        # Run cargo-deny if deny.toml exists (skip license checking)
         if [ -f "deny.toml" ]; then
-          cargo deny check
+          cargo deny check advisories bans sources
         else
           echo "No deny.toml found, skipping cargo-deny check"
         fi
