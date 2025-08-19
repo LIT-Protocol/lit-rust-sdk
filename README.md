@@ -1,7 +1,6 @@
 # Lit Protocol Rust SDK
 
-[![CI](https://github.com/LIT-Protocol/rust-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/LIT-Protocol/rust-sdk/actions/workflows/ci.yml)
-[![Documentation](https://github.com/LIT-Protocol/rust-sdk/actions/workflows/docs.yml/badge.svg)](https://github.com/LIT-Protocol/rust-sdk/actions/workflows/docs.yml)
+[![CI](https://github.com/LIT-Protocol/lit-rust-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/LIT-Protocol/lit-rust-sdk/actions/workflows/ci.yml)
 
 A native Rust implementation of the Lit Protocol SDK, providing programmatic access to the Lit Network for distributed key management, conditional access control, and programmable signing.
 
@@ -315,12 +314,14 @@ let response = client.execute_js(execute_params).await?;
 ```
 
 **Benefits of Local Session Signatures:**
+
 - **No PKP Required**: Execute Lit Actions using only your Ethereum wallet
 - **Simpler Setup**: No need to mint PKPs or manage distributed keys
 - **Cost Effective**: Avoid PKP minting costs for basic Lit Action execution
 - **Quick Start**: Ideal for testing and simple automation tasks
 
 **Limitations:**
+
 - No access to PKP signing capabilities within Lit Actions
 - Cannot use `Lit.Actions.signEcdsa()` or other PKP-specific functions
 - Suitable for computation, data processing, and API calls, but not for signing operations
@@ -570,7 +571,7 @@ The repository includes comprehensive GitHub Actions workflows for testing and v
 ### CI Pipeline
 
 - **Basic CI** (`ci.yml`): Runs on every push/PR with formatting, clippy, unit tests, and all integration tests
-- **Documentation** (`docs.yml`): Validates README files and builds documentation  
+- **Documentation** (`docs.yml`): Validates README files and builds documentation
 - **Release Tests** (`release.yml`): Full test suite that can be run manually for release testing
 
 ### Required GitHub Secrets
@@ -580,7 +581,7 @@ For CI to work properly, the following secrets must be configured in the reposit
 ```bash
 ETHEREUM_PRIVATE_KEY    # Private key for test wallet (should have test ETH)
 PKP_PUBLIC_KEY         # Existing PKP public key for tests (optional)
-PKP_TOKEN_ID           # Existing PKP token ID for tests (optional)  
+PKP_TOKEN_ID           # Existing PKP token ID for tests (optional)
 PKP_ETH_ADDRESS        # Existing PKP Ethereum address for tests (optional)
 ETHEREUM_RPC_URL       # RPC URL for Ethereum/L2 network interactions
 ```
