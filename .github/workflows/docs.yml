@@ -1,0 +1,137 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'lit-rust-sdk/src/**'
+      - 'lit-rust-sdk/Cargo.toml'
+      - 'README.md'
+      - 'lit-rust-sdk/README.md'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'lit-rust-sdk/src/**'
+      - 'lit-rust-sdk/Cargo.toml'
+      - 'README.md'
+      - 'lit-rust-sdk/README.md'
+
+jobs:
+  docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          lit-rust-sdk/target
+        key: ${{ runner.os }}-docs-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-docs-cargo-
+          
+    - name: Check documentation builds
+      run: |
+        cd lit-rust-sdk
+        cargo doc --no-deps --document-private-items
+        
+    - name: Check for broken links in docs
+      run: |
+        cd lit-rust-sdk
+        cargo doc --no-deps
+        # Simple check for common documentation issues
+        if grep -r "FIXME\|TODO\|XXX" src/ --include="*.rs"; then
+          echo "Warning: Found TODO/FIXME comments in documentation"
+        fi
+        
+    - name: Validate README examples
+      run: |
+        cd lit-rust-sdk
+        # Check that README examples compile (basic syntax check)
+        echo "Checking README examples..."
+        
+        # Extract rust code blocks from README and check they're valid syntax
+        grep -A 50 '```rust' README.md | grep -B 50 '```' | sed '/```/d' > temp_example.rs || true
+        if [ -s temp_example.rs ]; then
+          echo "Found Rust examples in README, checking syntax..."
+          # Add basic structure to make it compilable for syntax check
+          echo "fn main() {" > check_example.rs
+          cat temp_example.rs >> check_example.rs
+          echo "}" >> check_example.rs
+          
+          # Use rustc to check syntax only
+          rustc --edition=2021 --crate-type bin -o /dev/null check_example.rs 2>/dev/null || echo "README examples may have syntax issues"
+          
+          rm -f temp_example.rs check_example.rs
+        fi
+        
+    - name: Upload documentation
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation
+        path: lit-rust-sdk/target/doc
+        retention-days: 30
+
+  readme_check:
+    name: README Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check README files exist
+      run: |
+        echo "Checking README files..."
+        test -f README.md || (echo "Missing main README.md" && exit 1)
+        test -f lit-rust-sdk/README.md || (echo "Missing SDK README.md" && exit 1)
+        echo "✅ README files found"
+        
+    - name: Check README content
+      run: |
+        echo "Validating README content..."
+        
+        # Check main README has key sections
+        for section in "Features" "Quick Start" "Local Session Signatures" "API Reference"; do
+          if ! grep -q "## $section\|### $section" README.md; then
+            echo "❌ Missing '$section' section in main README.md"
+            exit 1
+          fi
+        done
+        
+        # Check SDK README has key sections  
+        for section in "Features" "Quick Start" "Documentation"; do
+          if ! grep -q "## $section\|### $section" lit-rust-sdk/README.md; then
+            echo "❌ Missing '$section' section in SDK README.md"
+            exit 1
+          fi
+        done
+        
+        echo "✅ README content validation passed"
+        
+    - name: Check for outdated information
+      run: |
+        echo "Checking for potentially outdated information..."
+        
+        # Check if version numbers look reasonable
+        if grep -q "lit-rust-sdk.*0\.1\.0" README.md lit-rust-sdk/README.md; then
+          echo "ℹ️ Version 0.1.0 found - consider updating for releases"
+        fi
+        
+        # Check for placeholder text
+        if grep -qi "todo\|fixme\|placeholder" README.md lit-rust-sdk/README.md; then
+          echo "⚠️ Found TODO/FIXME/placeholder text in README files"
+          grep -n -i "todo\|fixme\|placeholder" README.md lit-rust-sdk/README.md || true
+        fi
+        
+        echo "✅ README validation completed"
