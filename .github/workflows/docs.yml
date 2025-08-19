@@ -73,14 +73,6 @@ jobs:
           
           rm -f temp_example.rs check_example.rs
         fi
-        
-    - name: Upload documentation
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: actions/upload-artifact@v4
-      with:
-        name: documentation
-        path: lit-rust-sdk/target/doc
-        retention-days: 30
 
   readme_check:
     name: README Validation
