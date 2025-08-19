@@ -37,7 +37,7 @@ impl LitNodeClient<DynProvider> {
         let http_client = Client::builder().timeout(config.connect_timeout).build()?;
 
         let rpc_url = config.lit_network.rpc_url();
-        let provider = ProviderBuilder::new().connect(&rpc_url).await?;
+        let provider = ProviderBuilder::new().connect(rpc_url).await?;
         let staking_address = config.lit_network.staking_contract_address()?;
 
         let staking = Staking::new(staking_address, provider.erased());

@@ -22,7 +22,7 @@ impl EthWalletProvider {
         let address = wallet.address();
 
         // Create nonce
-        let nonce = format!("0x{}", hex::encode(&rand::random::<[u8; 32]>()));
+        let nonce = format!("0x{}", hex::encode(rand::random::<[u8; 32]>()));
 
         // Create SIWE message for authentication
         let issued_at = chrono::Utc::now().to_rfc3339();
@@ -41,7 +41,7 @@ impl EthWalletProvider {
         info!("Parsed message: {:?}", parsed_message);
 
         // Sign the SIWE message
-        let signature = wallet.sign_message(&siwe_message.as_bytes()).await?;
+        let signature = wallet.sign_message(siwe_message.as_bytes()).await?;
 
         // Convert signature to hex string
         let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
@@ -88,8 +88,8 @@ impl EthWalletProvider {
                     .iter()
                     .map(|addr| {
                         // Remove 0x prefix if present for the delegate_to field
-                        Value::from(if addr.starts_with("0x") {
-                            addr[2..].to_string()
+                        Value::from(if let Some(stripped) = addr.strip_prefix("0x") {
+                            stripped.to_string()
                         } else {
                             addr.to_string()
                         })
@@ -99,7 +99,7 @@ impl EthWalletProvider {
         );
 
         // Create nonce - use a random hex string
-        let nonce = format!("{}", hex::encode(&rand::random::<[u8; 16]>()));
+        let nonce = hex::encode(rand::random::<[u8; 16]>());
 
         // Create SIWE message for capacity delegation
         let issued_at = chrono::Utc::now();
@@ -144,7 +144,7 @@ impl EthWalletProvider {
         let message_str = siwe_message.to_string();
 
         // Sign the SIWE message
-        let signature = wallet.sign_message(&message_str.as_bytes()).await?;
+        let signature = wallet.sign_message(message_str.as_bytes()).await?;
 
         let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
 

@@ -98,7 +98,7 @@ async fn test_get_pkp_session_sigs() {
             println!("Number of session signatures: {}", session_sigs.len());
 
             // Print session signature keys (node URLs)
-            for (node_url, _sig) in &session_sigs {
+            for node_url in session_sigs.keys() {
                 println!("  Session sig from node: {}", node_url);
             }
 

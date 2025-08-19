@@ -143,7 +143,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
                 uri: session_key_uri.parse().unwrap(),
                 version: siwe::Version::V1,
                 chain_id: 1,
-                nonce: nonce,
+                nonce,
                 issued_at: siwe_issued_at
                     .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
                     .parse()

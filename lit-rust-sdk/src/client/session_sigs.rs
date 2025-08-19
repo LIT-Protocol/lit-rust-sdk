@@ -142,7 +142,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
                     .unwrap(),
                 version: siwe::Version::V1,
                 chain_id: 1,
-                nonce: nonce,
+                nonce,
                 issued_at: siwe_issued_at
                     .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
                     .parse()
@@ -163,7 +163,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         info!("Created SIWE message for auth sig: {}", message_str);
 
         // Sign the SIWE message with the wallet
-        let signature = wallet.sign_message(&message_str.as_bytes()).await?;
+        let signature = wallet.sign_message(message_str.as_bytes()).await?;
         let sig_hex = format!("0x{}", hex::encode(signature.as_bytes()));
 
         Ok(AuthSig {

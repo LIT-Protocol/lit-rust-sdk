@@ -56,7 +56,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     async fn handshake_with_nodes(&mut self, urls: &[String]) -> Result<()> {
         let mut successful_connections = 0;
         for url in urls {
-            match self.handshake_with_node(&url).await {
+            match self.handshake_with_node(url).await {
                 Ok(response) => {
                     info!("Successfully connected to node: {}", url);
                     self.connection_state.insert(
