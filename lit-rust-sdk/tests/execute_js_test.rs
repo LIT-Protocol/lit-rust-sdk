@@ -1,4 +1,7 @@
-use alloy::{network::EthereumWallet, primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
+use alloy::{
+    network::EthereumWallet, primitives::U256, providers::ProviderBuilder,
+    signers::local::PrivateKeySigner,
+};
 use chrono::{Datelike, Duration as ChronoDuration, TimeZone, Utc};
 use lit_rust_sdk::{
     auth::{load_wallet_from_env, EthWalletProvider},
@@ -160,7 +163,7 @@ async fn test_execute_js_hello_world() {
             println!("📊 Number of session signatures: {}", session_sigs.len());
 
             // Print session signature keys (node URLs)
-            for (node_url, _sig) in &session_sigs {
+            for node_url in session_sigs.keys() {
                 println!("  📋 Session sig from node: {}", node_url);
             }
 
@@ -662,7 +665,7 @@ async fn test_execute_js_with_capacity_delegation_datil() {
             println!("📊 Number of session signatures: {}", session_sigs.len());
 
             // Print session signature keys (node URLs)
-            for (node_url, _sig) in &session_sigs {
+            for node_url in session_sigs.keys() {
                 println!("  📋 Session sig from node: {}", node_url);
             }
 
@@ -735,7 +738,7 @@ async fn test_execute_js_with_capacity_delegation_datil() {
 async fn test_execute_js_with_auth_methods() {
     // This test demonstrates how to pass multiple auth methods to a Lit Action
     // and access them via Lit.Auth
-    
+
     // Initialize tracing for debugging
     let _ = tracing_subscriber::fmt().try_init();
 
@@ -753,11 +756,11 @@ async fn test_execute_js_with_auth_methods() {
 
     // Create 3 additional random wallets
     println!("🎲 Creating 3 random wallets for auth methods...");
-    
+
     let wallet1 = PrivateKeySigner::random();
     let wallet2 = PrivateKeySigner::random();
     let wallet3 = PrivateKeySigner::random();
-    
+
     println!("  📱 Wallet 1: {}", wallet1.address());
     println!("  📱 Wallet 2: {}", wallet2.address());
     println!("  📱 Wallet 3: {}", wallet3.address());
@@ -823,7 +826,7 @@ async fn test_execute_js_with_auth_methods() {
 
     // Create auth methods for the three additional wallets
     println!("🔄 Creating auth methods for additional wallets...");
-    
+
     let auth_method1 = match EthWalletProvider::authenticate(&wallet1, &client).await {
         Ok(method) => {
             println!("✅ Created auth method for wallet 1");
@@ -955,12 +958,11 @@ go();
             if let Some(response_obj) = response.response.as_object() {
                 if let Some(auth_count) = response_obj.get("authMethodCount") {
                     let count = auth_count.as_u64().unwrap_or(0);
-                    assert_eq!(
-                        count, 3,
-                        "Expected 3 auth methods, got {}",
+                    assert_eq!(count, 3, "Expected 3 auth methods, got {}", count);
+                    println!(
+                        "✅ Confirmed: {} auth methods were accessible in Lit.Auth",
                         count
                     );
-                    println!("✅ Confirmed: {} auth methods were accessible in Lit.Auth", count);
                 }
             }
 
@@ -969,7 +971,7 @@ go();
                 response.logs.contains("Auth Method Context"),
                 "Logs should contain auth method context information"
             );
-            
+
             // Verify each wallet address appears in the logs (check full address with 0x prefix)
             assert!(
                 response.logs.contains(&wallet1.address().to_string()),

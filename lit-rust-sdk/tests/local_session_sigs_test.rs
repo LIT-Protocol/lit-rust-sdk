@@ -1,6 +1,8 @@
 use lit_rust_sdk::{
     auth::load_wallet_from_env,
-    types::{ExecuteJsParams, LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource},
+    types::{
+        ExecuteJsParams, LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource,
+    },
     LitNetwork, LitNodeClient, LitNodeClientConfig,
 };
 use std::time::Duration;
@@ -25,8 +27,8 @@ async fn test_local_session_sigs_hello_world() {
     dotenv::from_path(".env").ok();
 
     // Load wallet from environment
-    let wallet = load_wallet_from_env()
-        .expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
+    let wallet =
+        load_wallet_from_env().expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
 
     println!("🔑 Using wallet address: {}", wallet.address());
 
@@ -60,22 +62,21 @@ async fn test_local_session_sigs_hello_world() {
     let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
 
     println!("🔐 Creating local session signatures (no PKP)...");
-    
+
     // Generate local session signatures without a PKP
     let session_sigs = client
-        .get_local_session_sigs(
-            &wallet,
-            resource_ability_requests,
-            &expiration,
-        )
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
         .await
         .expect("Failed to create local session signatures");
 
-    println!("✅ Created session signatures for {} nodes", session_sigs.len());
+    println!(
+        "✅ Created session signatures for {} nodes",
+        session_sigs.len()
+    );
 
     // Execute the Lit Action with local session signatures
     println!("🚀 Executing Lit Action with local session signatures...");
-    
+
     let execute_params = ExecuteJsParams {
         code: Some(HELLO_WORLD_LIT_ACTION.to_string()),
         ipfs_id: None,
@@ -96,8 +97,11 @@ async fn test_local_session_sigs_hello_world() {
     // The response should be a string for simple use cases
     assert!(response.response.is_string());
     let message = response.response.as_str().unwrap();
-    assert_eq!(message, "This action was executed with local session signatures, no PKP required!");
-    
+    assert_eq!(
+        message,
+        "This action was executed with local session signatures, no PKP required!"
+    );
+
     println!("✅ Test passed! Successfully executed Lit Action with local session signatures");
 }
 
@@ -109,8 +113,8 @@ async fn test_local_session_sigs_with_params() {
     dotenv::from_path(".env").ok();
 
     // Load wallet from environment
-    let wallet = load_wallet_from_env()
-        .expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
+    let wallet =
+        load_wallet_from_env().expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
 
     println!("🔑 Using wallet address: {}", wallet.address());
 
@@ -144,18 +148,17 @@ async fn test_local_session_sigs_with_params() {
     let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
 
     println!("🔐 Creating local session signatures (no PKP)...");
-    
+
     // Generate local session signatures without a PKP
     let session_sigs = client
-        .get_local_session_sigs(
-            &wallet,
-            resource_ability_requests,
-            &expiration,
-        )
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
         .await
         .expect("Failed to create local session signatures");
 
-    println!("✅ Created session signatures for {} nodes", session_sigs.len());
+    println!(
+        "✅ Created session signatures for {} nodes",
+        session_sigs.len()
+    );
 
     // Lit Action that demonstrates local session signature capabilities
     let lit_action_with_params = r#"
@@ -177,9 +180,9 @@ async fn test_local_session_sigs_with_params() {
     go();
     "#;
 
-    // Execute the Lit Action 
+    // Execute the Lit Action
     println!("🚀 Executing Lit Action with local session signatures...");
-    
+
     let execute_params = ExecuteJsParams {
         code: Some(lit_action_with_params.to_string()),
         ipfs_id: None,
@@ -202,6 +205,6 @@ async fn test_local_session_sigs_with_params() {
     let message = response.response.as_str().unwrap();
     assert!(message.contains("Lit Action executed successfully"));
     assert!(message.contains("94")); // Our computation result: 42 * 2 + 10 = 94
-    
+
     println!("✅ Test passed! Successfully executed Lit Action with local session signatures and additional functionality");
 }

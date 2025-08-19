@@ -14,7 +14,7 @@ where
     T: core::borrow::Borrow<JsonSignSessionKeyResponseV1>,
 {
     let shares = signature_shares
-        .map(|s| s.borrow().signature_share.clone())
+        .map(|s| s.borrow().signature_share)
         .collect::<Vec<_>>();
     let sig = Signature::from_shares(&shares)?;
     Ok(sig)

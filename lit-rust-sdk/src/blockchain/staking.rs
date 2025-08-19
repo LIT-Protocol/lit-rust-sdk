@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use alloy::sol;
 
 sol!(// `all_derives` - derives standard Rust traits.

@@ -186,7 +186,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
             if !response.success {
                 continue;
             }
-            for (_key, signed_data) in &response.signed_data {
+            for signed_data in response.signed_data.values() {
                 let sig_name = signed_data.sig_name.clone();
                 signatures_by_name
                     .entry(sig_name)

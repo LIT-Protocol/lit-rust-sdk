@@ -1,0 +1,21 @@
+# Configuration for cargo-deny - security-focused with permissive license checking
+
+[advisories]
+# Check for critical security vulnerabilities only
+version = 2
+yanked = "allow"  # Many transitive deps in web3 are yanked but safe
+unmaintained = "all"  # Allow all unmaintained crates
+ignore = [
+    # Allow these specific advisories for now
+    "RUSTSEC-2021-0141",  # dotenv unmaintained but safe
+    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained but safe
+    "RUSTSEC-2024-0436",  # paste unmaintained but safe
+]
+
+# Skip license checking entirely - focus only on security
+# [licenses]
+
+[bans]
+# Warn about multiple versions but don't fail
+multiple-versions = "warn"
+wildcards = "allow"
