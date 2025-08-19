@@ -21,20 +21,14 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      matrix:
-        rust:
-          - stable
-          - beta
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
         
     - name: Cache cargo registry
