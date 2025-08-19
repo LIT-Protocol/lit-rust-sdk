@@ -314,18 +314,11 @@ let execute_params = ExecuteJsParams {
 let response = client.execute_js(execute_params).await?;
 ```
 
-**Benefits of Local Session Signatures:**
+**Local Session Signatures:**
 
 - **No PKP Required**: Execute Lit Actions using only your Ethereum wallet
-- **Simpler Setup**: No need to mint PKPs or manage distributed keys
-- **Cost Effective**: Avoid PKP minting costs for basic Lit Action execution
-- **Quick Start**: Ideal for testing and simple automation tasks
-
-**Limitations:**
-
-- No access to PKP signing capabilities within Lit Actions
-- Cannot use `Lit.Actions.signEcdsa()` or other PKP-specific functions
-- Suitable for computation, data processing, and API calls, but not for signing operations
+- **Must have Ethereum wallet**: You must have an Ethereum wallet / local private key. Not suitable for cases where a PKP is the only wallet the user has.
+- **Can still use PKP signing**: Can still sign with a PKP owned or controlled by the local wallet.
 
 ### Lit Actions
 
