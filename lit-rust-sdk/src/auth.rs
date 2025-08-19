@@ -68,15 +68,18 @@ impl EthWalletProvider {
         delegatee_addresses: &[String],
         uses: &str,
     ) -> Result<AuthSig> {
+        use serde_json::Value;
         use siwe_recap::Capability;
         use std::collections::BTreeMap;
-        use serde_json::Value;
-        
+
         let address = wallet.address();
 
         // Create the nota bene data for the capability
         let mut notabene = BTreeMap::new();
-        notabene.insert("nft_id".to_string(), Value::from(vec![Value::from(capacity_token_id)]));
+        notabene.insert(
+            "nft_id".to_string(),
+            Value::from(vec![Value::from(capacity_token_id)]),
+        );
         notabene.insert("uses".to_string(), Value::from(uses.to_string()));
         notabene.insert(
             "delegate_to".to_string(),
@@ -91,7 +94,7 @@ impl EthWalletProvider {
                             addr.to_string()
                         })
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>(),
             ),
         );
 
@@ -106,7 +109,7 @@ impl EthWalletProvider {
         let mut capabilities = Capability::<Value>::default();
         let resource = "Auth/Auth".to_string();
         let resource_prefix = format!("lit-ratelimitincrease://{}", capacity_token_id);
-        
+
         let capabilities = capabilities
             .with_actions_convert(resource_prefix, [(resource, [notabene])])
             .map_err(|e| eyre::eyre!("Failed to create capability: {}", e))?;
@@ -121,8 +124,16 @@ impl EthWalletProvider {
                 version: "1".parse().unwrap(),
                 chain_id: 1,
                 nonce: nonce.clone(),
-                issued_at: issued_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true).parse().unwrap(),
-                expiration_time: Some(expiration.to_rfc3339_opts(chrono::SecondsFormat::Millis, true).parse().unwrap()),
+                issued_at: issued_at
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                    .parse()
+                    .unwrap(),
+                expiration_time: Some(
+                    expiration
+                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+                        .parse()
+                        .unwrap(),
+                ),
                 not_before: None,
                 request_id: None,
                 resources: vec![],
