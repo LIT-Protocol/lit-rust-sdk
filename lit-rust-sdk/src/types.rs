@@ -230,3 +230,112 @@ pub struct JsonSignSessionKeyResponseV1 {
     pub data_signed: String,
     pub bls_root_pubkey: String,
 }
+
+// Access Control Condition types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccessControlCondition {
+    pub contract_address: String,
+    pub chain: String,
+    pub standard_contract_type: String,
+    pub method: String,
+    pub parameters: Vec<String>,
+    pub return_value_test: ReturnValueTest,
+}
+
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedAccessControlConditionItem {
+    pub condition_type: String,
+    pub contract_address: String,
+    pub standard_contract_type: String,
+    pub chain: String,
+    pub method: String,
+    pub parameters: Vec<String>,
+    pub return_value_test: ReturnValueTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvmContractCondition {
+    pub contract_address: String,
+    pub function_name: String,
+    pub function_params: Vec<serde_json::Value>,
+    pub function_abi: serde_json::Value,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedEvmContractConditionItem {
+    pub condition_type: String,
+    pub contract_address: String,
+    pub function_name: String,
+    pub function_params: Vec<serde_json::Value>,
+    pub function_abi: serde_json::Value,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolRpcCondition {
+    pub method: String,
+    pub params: Vec<serde_json::Value>,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedSolRpcConditionItem {
+    pub condition_type: String,
+    pub method: String,
+    pub params: Vec<serde_json::Value>,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UnifiedAccessControlCondition {
+    AccessControl(UnifiedAccessControlConditionItem),
+    EvmContract(UnifiedEvmContractConditionItem),
+    SolRpc(UnifiedSolRpcConditionItem),
+    Operator(OperatorCondition),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OperatorCondition {
+    pub operator: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReturnValueTest {
+    pub comparator: String,
+    pub value: serde_json::Value,
+}
+
+// Encryption related types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptRequest {
+    pub data_to_encrypt: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptResponse {
+    pub ciphertext: String,
+    pub data_to_encrypt_hash: String,
+}
