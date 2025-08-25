@@ -243,9 +243,35 @@ pub struct AccessControlCondition {
     pub return_value_test: ReturnValueTest,
 }
 
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedAccessControlConditionItem {
+    pub condition_type: String,
+    pub contract_address: String,
+    pub standard_contract_type: String,
+    pub chain: String,
+    pub method: String,
+    pub parameters: Vec<String>,
+    pub return_value_test: ReturnValueTest,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvmContractCondition {
+    pub contract_address: String,
+    pub function_name: String,
+    pub function_params: Vec<serde_json::Value>,
+    pub function_abi: serde_json::Value,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedEvmContractConditionItem {
+    pub condition_type: String,
     pub contract_address: String,
     pub function_name: String,
     pub function_params: Vec<serde_json::Value>,
@@ -263,12 +289,23 @@ pub struct SolRpcCondition {
     pub return_value_test: ReturnValueTest,
 }
 
+// For unified access control conditions, we need a version with conditionType
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnifiedSolRpcConditionItem {
+    pub condition_type: String,
+    pub method: String,
+    pub params: Vec<serde_json::Value>,
+    pub chain: String,
+    pub return_value_test: ReturnValueTest,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnifiedAccessControlCondition {
-    AccessControl(AccessControlCondition),
-    EvmContract(EvmContractCondition),
-    SolRpc(SolRpcCondition),
+    AccessControl(UnifiedAccessControlConditionItem),
+    EvmContract(UnifiedEvmContractConditionItem),
+    SolRpc(UnifiedSolRpcConditionItem),
     Operator(OperatorCondition),
 }
 

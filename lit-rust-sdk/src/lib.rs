@@ -60,5 +60,6 @@ pub use config::{LitNetwork, LitNodeClientConfig};
 pub use types::{
     AccessControlCondition, AuthMethod, AuthSig, EncryptRequest, EncryptResponse,
     EvmContractCondition, ExecuteJsParams, ExecuteJsResponse, ReturnValueTest,
-    SessionSignatures, SolRpcCondition, UnifiedAccessControlCondition, PKP,
+    SessionSignatures, SolRpcCondition, UnifiedAccessControlCondition, 
+    UnifiedAccessControlConditionItem, PKP,
 };
