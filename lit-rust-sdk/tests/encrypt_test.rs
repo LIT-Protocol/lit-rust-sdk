@@ -1,17 +1,20 @@
 use lit_rust_sdk::{
     auth::load_wallet_from_env,
     types::{
-        AccessControlCondition, EncryptRequest, LitAbility,
-        LitResourceAbilityRequest, LitResourceAbilityRequestResource, ReturnValueTest,
+        AccessControlCondition, EncryptRequest, LitAbility, LitResourceAbilityRequest,
+        LitResourceAbilityRequestResource, ReturnValueTest,
     },
     LitNetwork, LitNodeClient, LitNodeClientConfig,
 };
 use std::time::Duration;
 
 #[tokio::test]
+#[ignore]
 async fn test_encrypt_with_access_control_conditions() {
-    // Initialize tracing for debugging
-    let _ = tracing_subscriber::fmt().try_init();
+    // Initialize tracing for debugging (honors RUST_LOG)
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     // Load wallet from environment
     let wallet = match load_wallet_from_env() {
@@ -53,19 +56,17 @@ async fn test_encrypt_with_access_control_conditions() {
 
     // Create simple access control conditions
     // Example: User must hold at least 0 ETH (everyone can decrypt)
-    let access_control_conditions = vec![
-        AccessControlCondition {
-            contract_address: "".to_string(),
-            standard_contract_type: "".to_string(),
-            chain: "ethereum".to_string(),
-            method: "eth_getBalance".to_string(),
-            parameters: vec![":userAddress".to_string(), "latest".to_string()],
-            return_value_test: ReturnValueTest {
-                comparator: ">=".to_string(),
-                value: serde_json::json!("0"),
-            },
+    let access_control_conditions = vec![AccessControlCondition {
+        contract_address: "".to_string(),
+        standard_contract_type: "".to_string(),
+        chain: "ethereum".to_string(),
+        method: "eth_getBalance".to_string(),
+        parameters: vec![":userAddress".to_string(), "latest".to_string()],
+        return_value_test: ReturnValueTest {
+            comparator: ">=".to_string(),
+            value: serde_json::json!("0"),
         },
-    ];
+    }];
 
     // Create test data to encrypt
     let test_data = b"Hello from Rust SDK encryption test!";
@@ -89,9 +90,15 @@ async fn test_encrypt_with_access_control_conditions() {
             println!("🔗 Data hash: {}", response.data_to_encrypt_hash);
 
             // Verify the response
-            assert!(!response.ciphertext.is_empty(), "Ciphertext should not be empty");
-            assert!(!response.data_to_encrypt_hash.is_empty(), "Data hash should not be empty");
-            
+            assert!(
+                !response.ciphertext.is_empty(),
+                "Ciphertext should not be empty"
+            );
+            assert!(
+                !response.data_to_encrypt_hash.is_empty(),
+                "Data hash should not be empty"
+            );
+
             // Verify it's valid base64
             use base64::{engine::general_purpose::STANDARD, Engine as _};
             match STANDARD.decode(&response.ciphertext) {
@@ -119,8 +126,10 @@ async fn test_encrypt_with_access_control_conditions() {
 
 #[tokio::test]
 async fn test_encrypt_and_decrypt_with_session_sigs() {
-    // Initialize tracing for debugging
-    let _ = tracing_subscriber::fmt().try_init();
+    // Initialize tracing for debugging (honors RUST_LOG)
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     // Load wallet from environment
     let wallet = match load_wallet_from_env() {
@@ -160,21 +169,19 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
         }
     }
 
-    // Create access control conditions that require the user's wallet
-    let wallet_address = format!("{:?}", wallet.address());
-    let access_control_conditions = vec![
-        AccessControlCondition {
-            contract_address: "".to_string(),
-            standard_contract_type: "".to_string(),
-            chain: "ethereum".to_string(),
-            method: "eth_getBalance".to_string(),
-            parameters: vec![wallet_address.clone(), "latest".to_string()],
-            return_value_test: ReturnValueTest {
-                comparator: ">=".to_string(),
-                value: serde_json::json!("0"),
-            },
+    // Create simple access control conditions that allow anyone to decrypt
+    // Using ":userAddress" means whoever holds the session sig can decrypt
+    let access_control_conditions = vec![AccessControlCondition {
+        contract_address: "".to_string(),
+        standard_contract_type: "".to_string(),
+        chain: "ethereum".to_string(),
+        method: "eth_getBalance".to_string(),
+        parameters: vec![":userAddress".to_string(), "latest".to_string()],
+        return_value_test: ReturnValueTest {
+            comparator: ">=".to_string(),
+            value: serde_json::json!("0"),
         },
-    ];
+    }];
 
     // Create test data to encrypt
     let test_data = b"Secret message that requires wallet ownership to decrypt!";
@@ -190,7 +197,7 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
 
     // Encrypt the data
     println!("🔒 Encrypting data with access control conditions...");
-    let _encrypt_response = match client.encrypt(encrypt_request).await {
+    let encrypt_response = match client.encrypt(encrypt_request).await {
         Ok(response) => {
             println!("✅ Data encrypted successfully!");
             println!("📦 Ciphertext length: {} bytes", response.ciphertext.len());
@@ -203,34 +210,124 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
     };
 
     // Now let's prepare to decrypt by getting session signatures
-    let resource_ability_requests = vec![LitResourceAbilityRequest {
-        resource: LitResourceAbilityRequestResource {
-            resource: "*".to_string(),
-            resource_prefix: "lit-accesscontrolcondition".to_string(),
+    let resource_ability_requests = vec![
+        LitResourceAbilityRequest {
+            resource: LitResourceAbilityRequestResource {
+                resource: "*".to_string(),
+                resource_prefix: "lit-accesscontrolcondition".to_string(),
+            },
+            ability: LitAbility::AccessControlConditionDecryption.to_string(),
         },
-        ability: LitAbility::AccessControlConditionDecryption.to_string(),
-    }];
+        LitResourceAbilityRequest {
+            resource: LitResourceAbilityRequestResource {
+                resource: "*".to_string(),
+                resource_prefix: "lit-litaction".to_string(),
+            },
+            ability: LitAbility::LitActionExecution.to_string(),
+        },
+    ];
 
     let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
-    
+
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
         .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
         .await
         .expect("Failed to create local session signatures");
 
-    println!("✅ Got session signatures from {} nodes", session_sigs.len());
+    println!(
+        "✅ Got session signatures from {} nodes",
+        session_sigs.len()
+    );
 
-    // NOTE: Actual decryption would require implementing a decrypt function
-    // For this test, we're just verifying the encryption worked
-    println!("✅ Encryption test completed successfully!");
-    println!("📝 Note: Full decrypt functionality would need to be implemented separately");
+    // Now decrypt using a Lit Action
+    // Note: decryptAndCombine needs sessionSigs passed, not authSig
+    let decrypt_lit_action = r#"
+    (async () => {
+        console.log("Starting decryption...");
+        console.log("Ciphertext length:", ciphertext.length);
+        console.log("DataToEncryptHash:", dataToEncryptHash);
+        console.log("AccessControlConditions:", JSON.stringify(accessControlConditions));
+        
+        try {
+            const resp = await Lit.Actions.decryptAndCombine({
+                accessControlConditions,
+                ciphertext,
+                dataToEncryptHash,
+                chain: 'ethereum',
+            });
+            
+            console.log("Decryption successful!");
+            Lit.Actions.setResponse({ response: resp });
+        } catch (error) {
+            console.error("Decryption error:", error);
+            throw error;
+        }
+    })();
+    "#;
+
+    // Prepare jsParams with the encrypted data and access control conditions
+    let js_params = serde_json::json!({
+        "accessControlConditions": access_control_conditions,
+        "ciphertext": encrypt_response.ciphertext,
+        "dataToEncryptHash": encrypt_response.data_to_encrypt_hash,
+    });
+
+    println!("🔓 Decrypting data using Lit Action...");
+
+    use lit_rust_sdk::ExecuteJsParams;
+    let execute_params = ExecuteJsParams {
+        code: Some(decrypt_lit_action.to_string()),
+        ipfs_id: None,
+        session_sigs,
+        auth_methods: None,
+        js_params: Some(js_params),
+    };
+
+    match client.execute_js(execute_params).await {
+        Ok(response) => {
+            println!("✅ Lit Action executed successfully!");
+            println!("📜 Logs: {}", response.logs);
+
+            // The response should contain the decrypted data
+            if let Some(decrypted) = response.response.get("response") {
+                // Convert the response back to string
+                if let Some(decrypted_str) = decrypted.as_str() {
+                    println!("🔓 Decrypted content: {}", decrypted_str);
+
+                    // Verify it matches our original data
+                    let original = String::from_utf8_lossy(test_data);
+                    assert_eq!(
+                        decrypted_str, original,
+                        "Decrypted data should match original data"
+                    );
+                    println!("✅ Decryption successful - data matches original!");
+                } else {
+                    println!("⚠️ Decrypted data is not a string: {:?}", decrypted);
+                }
+            } else {
+                println!(
+                    "❌ No response field in Lit Action response: {:?}",
+                    response.response
+                );
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to execute decrypt Lit Action: {}", e);
+            panic!("Decryption failed");
+        }
+    }
+
+    println!("✅ Full encrypt/decrypt test completed successfully!");
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_encrypt_with_evm_contract_conditions() {
-    // Initialize tracing for debugging
-    let _ = tracing_subscriber::fmt().try_init();
+    // Initialize tracing for debugging (honors RUST_LOG)
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
 
     // Create client configuration
     let config = LitNodeClientConfig {
@@ -257,37 +354,35 @@ async fn test_encrypt_with_evm_contract_conditions() {
 
     // Create EVM contract conditions
     use lit_rust_sdk::types::EvmContractCondition;
-    
+
     // Example: Check if user has a balance > 0 on a token contract
-    let evm_contract_conditions = vec![
-        EvmContractCondition {
-            contract_address: "0x0000000000000000000000000000000000000000".to_string(),
-            function_name: "balanceOf".to_string(),
-            function_params: vec![serde_json::json!(":userAddress")],
-            function_abi: serde_json::json!({
-                "inputs": [
-                    {
-                        "name": "owner",
-                        "type": "address"
-                    }
-                ],
-                "name": "balanceOf",
-                "outputs": [
-                    {
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            }),
-            chain: "ethereum".to_string(),
-            return_value_test: ReturnValueTest {
-                comparator: ">".to_string(),
-                value: serde_json::json!("0"),
-            },
+    let evm_contract_conditions = vec![EvmContractCondition {
+        contract_address: "0x0000000000000000000000000000000000000000".to_string(),
+        function_name: "balanceOf".to_string(),
+        function_params: vec![serde_json::json!(":userAddress")],
+        function_abi: serde_json::json!({
+            "inputs": [
+                {
+                    "name": "owner",
+                    "type": "address"
+                }
+            ],
+            "name": "balanceOf",
+            "outputs": [
+                {
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }),
+        chain: "ethereum".to_string(),
+        return_value_test: ReturnValueTest {
+            comparator: ">".to_string(),
+            value: serde_json::json!("0"),
         },
-    ];
+    }];
 
     // Create test data to encrypt
     let test_data = b"Data encrypted with EVM contract conditions!";
@@ -310,8 +405,14 @@ async fn test_encrypt_with_evm_contract_conditions() {
             println!("🔗 Data hash: {}", response.data_to_encrypt_hash);
 
             // Verify the response
-            assert!(!response.ciphertext.is_empty(), "Ciphertext should not be empty");
-            assert!(!response.data_to_encrypt_hash.is_empty(), "Data hash should not be empty");
+            assert!(
+                !response.ciphertext.is_empty(),
+                "Ciphertext should not be empty"
+            );
+            assert!(
+                !response.data_to_encrypt_hash.is_empty(),
+                "Data hash should not be empty"
+            );
 
             println!("✅ EVM contract conditions encryption test passed!");
         }

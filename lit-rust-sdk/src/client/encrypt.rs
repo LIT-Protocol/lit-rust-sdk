@@ -3,6 +3,7 @@ use crate::types::{EncryptRequest, EncryptResponse};
 use alloy::providers::Provider as ProviderTrait;
 use eyre::{eyre, Result};
 use sha2::{Digest, Sha256};
+use tracing::debug;
 
 impl<P> LitNodeClient<P>
 where
@@ -47,7 +48,7 @@ where
         let hash_of_conditions = self.get_hashed_access_control_conditions(&params)?;
         let hash_of_conditions_str = hex::encode(&hash_of_conditions);
 
-        tracing::debug!("hashOfConditionsStr: {}", hash_of_conditions_str);
+        debug!("hashOfConditionsStr: {}", hash_of_conditions_str);
 
         // Hash the private data
         let mut hasher = Sha256::new();
@@ -55,15 +56,13 @@ where
         let hash_of_private_data = hasher.finalize();
         let hash_of_private_data_str = hex::encode(&hash_of_private_data);
 
-        tracing::debug!("hashOfPrivateDataStr: {}", hash_of_private_data_str);
+        debug!("hashOfPrivateDataStr: {}", hash_of_private_data_str);
 
         // Assemble identity parameter
-        let identity_param = self.get_identity_param_for_encryption(
-            &hash_of_conditions_str,
-            &hash_of_private_data_str,
-        );
+        let identity_param = self
+            .get_identity_param_for_encryption(&hash_of_conditions_str, &hash_of_private_data_str);
 
-        tracing::debug!("identityParam: {}", identity_param);
+        debug!("identityParam: {}", identity_param);
 
         // Remove 0x prefix from subnet_pub_key if present
         let clean_pub_key = subnet_pub_key.strip_prefix("0x").unwrap_or(subnet_pub_key);
