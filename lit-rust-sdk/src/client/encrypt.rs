@@ -87,7 +87,8 @@ where
     /// Hash the access control conditions to match lit-node implementation
     fn get_hashed_access_control_conditions(&self, params: &EncryptRequest) -> Result<Vec<u8>> {
         // Serialize the conditions to JSON exactly like lit-node does
-        let conditions_json = if let Some(ref conditions) = params.unified_access_control_conditions {
+        let conditions_json = if let Some(ref conditions) = params.unified_access_control_conditions
+        {
             serde_json::to_string(conditions)?
         } else if let Some(ref conditions) = params.access_control_conditions {
             serde_json::to_string(conditions)?
@@ -99,7 +100,10 @@ where
             return Err(eyre!("No access control conditions provided"));
         };
 
-        tracing::debug!("stringified_access_control_conditions: {:?}", conditions_json);
+        tracing::debug!(
+            "stringified_access_control_conditions: {:?}",
+            conditions_json
+        );
 
         // Hash the JSON string exactly like lit-node does
         let mut hasher = Sha256::new();
