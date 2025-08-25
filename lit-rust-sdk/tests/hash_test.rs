@@ -8,7 +8,7 @@ async fn test_hash_combinations() {
     println!("🎯 Target hash: {}", expected_hash);
 
     // Try various JSON format combinations
-    let test_cases = vec![
+    let test_cases = [
         // Basic format (what we currently have)
         r#"[{"contractAddress":"","standardContractType":"","chain":"ethereum","method":"eth_getBalance","parameters":[":userAddress","latest"],"returnValueTest":{"comparator":">=","value":"0"}}]"#,
         // Field order variation 1
