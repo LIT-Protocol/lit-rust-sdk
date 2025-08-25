@@ -4,7 +4,7 @@ use lit_rust_sdk::{
         AccessControlCondition, EncryptRequest, LitAbility, LitResourceAbilityRequest,
         LitResourceAbilityRequestResource, ReturnValueTest,
     },
-    LitNetwork, LitNodeClient, LitNodeClientConfig,
+    ExecuteJsParams, LitNetwork, LitNodeClient, LitNodeClientConfig,
 };
 use std::time::Duration;
 
@@ -54,8 +54,6 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
     }
 
     // Create access control conditions using the basic format like the working test
-    // The working test uses JsonAccessControlCondition directly, not with conditionType
-    use lit_rust_sdk::types::AccessControlCondition;
 
     let access_control_condition = AccessControlCondition {
         contract_address: "".to_string(),
@@ -151,7 +149,6 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
 
     println!("🔓 Decrypting data using Lit Action...");
 
-    use lit_rust_sdk::ExecuteJsParams;
     let execute_params = ExecuteJsParams {
         code: Some(decrypt_lit_action.to_string()),
         ipfs_id: None,
