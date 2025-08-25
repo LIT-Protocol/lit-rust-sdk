@@ -169,13 +169,11 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
         }
     }
 
-    // Create unified access control conditions that allow anyone to decrypt
-    // Using ":userAddress" means whoever holds the session sig can decrypt
-    // NOTE: Must use unified access control conditions for decryption to work
-    use lit_rust_sdk::types::{UnifiedAccessControlCondition, UnifiedAccessControlConditionItem};
+    // Create access control conditions using the basic format like the working test
+    // The working test uses JsonAccessControlCondition directly, not with conditionType
+    use lit_rust_sdk::types::AccessControlCondition;
     
-    let unified_access_control_condition_item = UnifiedAccessControlConditionItem {
-        condition_type: "evmBasic".to_string(),
+    let access_control_condition = AccessControlCondition {
         contract_address: "".to_string(),
         standard_contract_type: "".to_string(),
         chain: "ethereum".to_string(),
@@ -187,20 +185,18 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
         },
     };
     
-    let unified_access_control_conditions = vec![
-        UnifiedAccessControlCondition::AccessControl(unified_access_control_condition_item),
-    ];
+    let access_control_conditions = vec![access_control_condition];
 
     // Create test data to encrypt
     let test_data = b"Secret message that requires wallet ownership to decrypt!";
 
-    // Create encrypt request - MUST use unified access control conditions
+    // Create encrypt request using basic access control conditions (like the working test)
     let encrypt_request = EncryptRequest {
         data_to_encrypt: test_data.to_vec(),
-        access_control_conditions: None,
+        access_control_conditions: Some(access_control_conditions.clone()),
         evm_contract_conditions: None,
         sol_rpc_conditions: None,
-        unified_access_control_conditions: Some(unified_access_control_conditions.clone()),
+        unified_access_control_conditions: None,
     };
 
     // Encrypt the data
@@ -248,34 +244,23 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
         session_sigs.len()
     );
 
-    // Now decrypt using a Lit Action - MUST use unifiedAccessControlConditions
+    // Now decrypt using a Lit Action - use accessControlConditions exactly like the working test
     let decrypt_lit_action = r#"
     (async () => {
-        console.log("Starting decryption...");
-        console.log("Ciphertext length:", ciphertext.length);
-        console.log("DataToEncryptHash:", dataToEncryptHash);
-        console.log("UnifiedAccessControlConditions:", JSON.stringify(unifiedAccessControlConditions));
-        
-        try {
-            const resp = await Lit.Actions.decryptAndCombine({
-                unifiedAccessControlConditions,
-                ciphertext,
-                dataToEncryptHash,
-                chain: 'ethereum',
-            });
-            
-            console.log("Decryption successful!");
-            Lit.Actions.setResponse({ response: resp });
-        } catch (error) {
-            console.error("Decryption error:", error);
-            throw error;
-        }
+        const resp = await Lit.Actions.decryptAndCombine({
+            accessControlConditions,
+            ciphertext,
+            dataToEncryptHash,
+            chain: 'ethereum',
+        });
+        Lit.Actions.setResponse({ response: JSON.stringify(resp) });
     })();
     "#;
 
-    // Prepare jsParams with the encrypted data and unified access control conditions
+    // Prepare jsParams with the encrypted data and access control conditions
+    // The Lit Action expects accessControlConditions in the basic format
     let js_params = serde_json::json!({
-        "unifiedAccessControlConditions": unified_access_control_conditions,
+        "accessControlConditions": access_control_conditions,
         "ciphertext": encrypt_response.ciphertext,
         "dataToEncryptHash": encrypt_response.data_to_encrypt_hash,
     });
@@ -296,25 +281,22 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
             println!("✅ Lit Action executed successfully!");
             println!("📜 Logs: {}", response.logs);
 
-            // The response should contain the decrypted data
-            if let Some(decrypted) = response.response.get("response") {
-                // Convert the response back to string
-                if let Some(decrypted_str) = decrypted.as_str() {
-                    println!("🔓 Decrypted content: {}", decrypted_str);
+            // The response contains the decrypted data as a JSON-encoded string
+            if let Some(decrypted_str) = response.response.as_str() {
+                // Remove the JSON quotes if present (the response is JSON-encoded)
+                let decrypted_str = decrypted_str.trim_matches('"');
+                println!("🔓 Decrypted content: {}", decrypted_str);
 
-                    // Verify it matches our original data
-                    let original = String::from_utf8_lossy(test_data);
-                    assert_eq!(
-                        decrypted_str, original,
-                        "Decrypted data should match original data"
-                    );
-                    println!("✅ Decryption successful - data matches original!");
-                } else {
-                    println!("⚠️ Decrypted data is not a string: {:?}", decrypted);
-                }
+                // Verify it matches our original data
+                let original = String::from_utf8_lossy(test_data);
+                assert_eq!(
+                    decrypted_str, original,
+                    "Decrypted data should match original data"
+                );
+                println!("✅ Decryption successful - data matches original!");
             } else {
                 println!(
-                    "❌ No response field in Lit Action response: {:?}",
+                    "⚠️ Unexpected response format: {:?}",
                     response.response
                 );
             }

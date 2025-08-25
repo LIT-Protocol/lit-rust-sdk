@@ -236,8 +236,8 @@ pub struct JsonSignSessionKeyResponseV1 {
 #[serde(rename_all = "camelCase")]
 pub struct AccessControlCondition {
     pub contract_address: String,
-    pub standard_contract_type: String,
     pub chain: String,
+    pub standard_contract_type: String,
     pub method: String,
     pub parameters: Vec<String>,
     pub return_value_test: ReturnValueTest,
