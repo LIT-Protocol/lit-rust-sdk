@@ -54,7 +54,7 @@ where
         let mut hasher = Sha256::new();
         hasher.update(&params.data_to_encrypt);
         let hash_of_private_data = hasher.finalize();
-        let hash_of_private_data_str = hex::encode(&hash_of_private_data);
+        let hash_of_private_data_str = hex::encode(hash_of_private_data);
 
         debug!("hashOfPrivateDataStr: {}", hash_of_private_data_str);
 
