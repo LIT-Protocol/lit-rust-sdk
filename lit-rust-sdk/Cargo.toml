@@ -1,6 +1,6 @@
 [package]
 name = "lit-rust-sdk"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Lit Protocol"]
 description = "Native Rust SDK for Lit Protocol - distributed key management and programmable signing"
