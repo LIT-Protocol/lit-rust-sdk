@@ -69,7 +69,8 @@ async fn test_client_side_decryption_with_session_sigs() {
     let access_control_conditions = vec![access_control_condition];
 
     // Create test data to encrypt
-    let test_data = b"Secret message that requires wallet ownership to decrypt using client-side decryption!";
+    let test_data =
+        b"Secret message that requires wallet ownership to decrypt using client-side decryption!";
 
     // Create encrypt request using basic access control conditions
     let encrypt_request = EncryptRequest {
@@ -133,7 +134,7 @@ async fn test_client_side_decryption_with_session_sigs() {
     match client.decrypt(decrypt_request).await {
         Ok(response) => {
             println!("✅ Client-side decryption successful!");
-            
+
             // Convert decrypted bytes to string
             let decrypted_str = String::from_utf8_lossy(&response.decrypted_data);
             println!("🔓 Decrypted content: {}", decrypted_str);

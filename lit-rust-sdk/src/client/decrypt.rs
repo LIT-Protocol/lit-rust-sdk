@@ -64,9 +64,11 @@ where
         // Get identity parameter for decryption
         let hash_of_conditions = self.get_hashed_access_control_conditions_from_decrypt(&params)?;
         let hash_of_conditions_str = hex::encode(&hash_of_conditions);
-        let identity_param = self
-            .get_identity_param_for_encryption(&hash_of_conditions_str, &params.data_to_encrypt_hash);
-        
+        let identity_param = self.get_identity_param_for_encryption(
+            &hash_of_conditions_str,
+            &params.data_to_encrypt_hash,
+        );
+
         debug!("Identity param for decryption: {}", identity_param);
 
         // Combine shares and decrypt
@@ -132,12 +134,7 @@ where
         let url = format!("{}/web/encryption/sign", node_url);
         debug!("Sending encryption sign request to: {}", url);
 
-        let response = self
-            .http_client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await?;
+        let response = self.http_client.post(&url).json(&request).send().await?;
 
         if !response.status().is_success() {
             let error_text = response.text().await?;
@@ -165,10 +162,8 @@ where
         let ciphertext_bytes = STANDARD.decode(ciphertext)?;
 
         // Combine shares into a single signature
-        let signature_shares: Vec<blsful::SignatureShare<blsful::Bls12381G2Impl>> = shares
-            .into_iter()
-            .map(|s| s.signature_share)
-            .collect();
+        let signature_shares: Vec<blsful::SignatureShare<blsful::Bls12381G2Impl>> =
+            shares.into_iter().map(|s| s.signature_share).collect();
 
         let combined_signature = blsful::Signature::from_shares(&signature_shares)?;
 
@@ -187,18 +182,18 @@ where
         params: &DecryptRequest,
     ) -> Result<Vec<u8>> {
         // Serialize the conditions to JSON exactly like lit-node does
-        let conditions_json =
-            if let Some(ref conditions) = params.unified_access_control_conditions {
-                serde_json::to_string(conditions)?
-            } else if let Some(ref conditions) = params.access_control_conditions {
-                serde_json::to_string(conditions)?
-            } else if let Some(ref conditions) = params.evm_contract_conditions {
-                serde_json::to_string(conditions)?
-            } else if let Some(ref conditions) = params.sol_rpc_conditions {
-                serde_json::to_string(conditions)?
-            } else {
-                return Err(eyre!("No access control conditions provided"));
-            };
+        let conditions_json = if let Some(ref conditions) = params.unified_access_control_conditions
+        {
+            serde_json::to_string(conditions)?
+        } else if let Some(ref conditions) = params.access_control_conditions {
+            serde_json::to_string(conditions)?
+        } else if let Some(ref conditions) = params.evm_contract_conditions {
+            serde_json::to_string(conditions)?
+        } else if let Some(ref conditions) = params.sol_rpc_conditions {
+            serde_json::to_string(conditions)?
+        } else {
+            return Err(eyre!("No access control conditions provided"));
+        };
 
         debug!(
             "stringified_access_control_conditions: {:?}",
@@ -210,5 +205,4 @@ where
         hasher.update(conditions_json.as_bytes());
         Ok(hasher.finalize().to_vec())
     }
-
 }
