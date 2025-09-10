@@ -339,3 +339,53 @@ pub struct EncryptResponse {
     pub ciphertext: String,
     pub data_to_encrypt_hash: String,
 }
+
+// Decryption related types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptRequest {
+    pub ciphertext: String,
+    pub data_to_encrypt_hash: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain: Option<String>,
+    pub session_sigs: SessionSignatures,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EncryptionSignRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain: Option<String>,
+    pub data_to_encrypt_hash: String,
+    pub auth_sig: AuthSig,
+    #[serde(default)]
+    pub epoch: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EncryptionSignResponse {
+    pub result: String,
+    pub signature_share: BlsfulSignatureShare<Bls12381G2Impl>,
+    pub share_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecryptResponse {
+    pub decrypted_data: Vec<u8>,
+}

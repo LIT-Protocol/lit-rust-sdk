@@ -10,6 +10,7 @@ Currently in Beta and only supports Datil, DatilDev, and DatilTest networks.
 - **PKP Management**: Mint and manage Programmable Key Pairs (PKPs)
 - **Session Signatures**: Generate and manage session signatures for authentication
 - **Lit Actions**: Execute JavaScript code on the Lit Network with access to PKP signing capabilities
+- **Encryption & Decryption**: BLS encryption with access control conditions and client-side decryption
 - **Capacity Delegation**: Delegate network capacity using Rate Limit NFTs
 - **Multi-Network Support**: Connect to Datil, DatilDev, and DatilTest networks
 - **Ethereum Wallet Integration**: Native support for Ethereum wallet authentication

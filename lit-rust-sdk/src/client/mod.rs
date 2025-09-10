@@ -6,6 +6,7 @@ use reqwest::Client;
 use std::sync::Arc;
 
 mod connect;
+mod decrypt;
 mod encrypt;
 mod execute;
 mod pkp;
