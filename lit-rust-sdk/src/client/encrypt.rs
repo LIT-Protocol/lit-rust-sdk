@@ -112,7 +112,7 @@ where
     }
 
     /// Generate the identity parameter for encryption
-    fn get_identity_param_for_encryption(
+    pub(crate) fn get_identity_param_for_encryption(
         &self,
         hash_of_conditions: &str,
         hash_of_private_data: &str,

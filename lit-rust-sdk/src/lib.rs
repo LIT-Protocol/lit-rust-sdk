@@ -58,7 +58,8 @@ pub mod types;
 pub use client::LitNodeClient;
 pub use config::{LitNetwork, LitNodeClientConfig};
 pub use types::{
-    AccessControlCondition, AuthMethod, AuthSig, EncryptRequest, EncryptResponse,
-    EvmContractCondition, ExecuteJsParams, ExecuteJsResponse, ReturnValueTest, SessionSignatures,
-    SolRpcCondition, UnifiedAccessControlCondition, UnifiedAccessControlConditionItem, PKP,
+    AccessControlCondition, AuthMethod, AuthSig, DecryptRequest, DecryptResponse, EncryptRequest,
+    EncryptResponse, EncryptionSignRequest, EncryptionSignResponse, EvmContractCondition,
+    ExecuteJsParams, ExecuteJsResponse, ReturnValueTest, SessionSignatures, SolRpcCondition,
+    UnifiedAccessControlCondition, UnifiedAccessControlConditionItem, PKP,
 };
