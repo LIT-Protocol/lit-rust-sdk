@@ -197,7 +197,7 @@ where
                 stringified_access_control_conditions
             );
             hasher.update(stringified_access_control_conditions.as_bytes());
-        } else if let Some(_) = &req.sol_rpc_conditions {
+        } else if req.sol_rpc_conditions.is_some() {
             return Err(eyre!("SolRpcConditions are not supported for decryption"));
         } else if let Some(unified_access_control_conditions) =
             &req.unified_access_control_conditions
