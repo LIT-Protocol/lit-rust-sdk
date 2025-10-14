@@ -54,6 +54,7 @@ pub mod bls;
 pub mod client;
 pub mod config;
 pub mod types;
+pub mod utils;
 
 pub use client::LitNodeClient;
 pub use config::{LitNetwork, LitNodeClientConfig};

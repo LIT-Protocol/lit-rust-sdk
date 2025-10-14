@@ -261,10 +261,10 @@ pub struct UnifiedAccessControlConditionItem {
 pub struct EvmContractCondition {
     pub contract_address: String,
     pub function_name: String,
-    pub function_params: Vec<serde_json::Value>,
-    pub function_abi: serde_json::Value,
+    pub function_params: Vec<String>,
+    pub function_abi: ethabi::Function,
     pub chain: String,
-    pub return_value_test: ReturnValueTest,
+    pub return_value_test: ReturnValueTestV2,
 }
 
 // For unified access control conditions, we need a version with conditionType
@@ -274,7 +274,7 @@ pub struct UnifiedEvmContractConditionItem {
     pub condition_type: String,
     pub contract_address: String,
     pub function_name: String,
-    pub function_params: Vec<serde_json::Value>,
+    pub function_params: Vec<String>,
     pub function_abi: serde_json::Value,
     pub chain: String,
     pub return_value_test: ReturnValueTest,
@@ -317,7 +317,14 @@ pub struct OperatorCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReturnValueTest {
     pub comparator: String,
-    pub value: serde_json::Value,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReturnValueTestV2 {
+    pub key: String,
+    pub comparator: String,
+    pub value: String,
 }
 
 // Encryption related types

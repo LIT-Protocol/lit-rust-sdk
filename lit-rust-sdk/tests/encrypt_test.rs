@@ -63,7 +63,7 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
         parameters: vec![":userAddress".to_string(), "latest".to_string()],
         return_value_test: ReturnValueTest {
             comparator: ">=".to_string(),
-            value: serde_json::json!("0"),
+            value: "0".to_string(),
         },
     };
 
