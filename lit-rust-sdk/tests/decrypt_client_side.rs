@@ -202,7 +202,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
     }
 
     let usdc_address_on_eth = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    // Create EVM contract condition with simple whitelist check
+    // Create EVM contract condition that hits the USDC contract and checks for balance >=0 so it will pass for any wallet, but the nodes will actually call the contract and check the balance
     let evm_contract_condition = EvmContractCondition {
         contract_address: usdc_address_on_eth.to_string(),
         function_name: "balanceOf".to_string(),
