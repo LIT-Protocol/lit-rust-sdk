@@ -220,6 +220,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
                 kind: ethabi::ParamType::Uint(256),
             }],
             state_mutability: ethabi::StateMutability::View,
+            #[allow(deprecated)] // this is needed for compatibility with the version of ethabi running on the lit nodes which expects this param, and is an older version where this is not deprecated
             constant: Some(false),
         },
         chain: "ethereum".to_string(),
