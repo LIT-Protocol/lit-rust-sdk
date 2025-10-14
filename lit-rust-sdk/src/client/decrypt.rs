@@ -2,6 +2,7 @@ use crate::client::LitNodeClient;
 use crate::types::{
     DecryptRequest, DecryptResponse, EncryptionSignRequest, EncryptionSignResponse,
 };
+use crate::utils;
 use alloy::providers::Provider as ProviderTrait;
 use eyre::{eyre, Result};
 use sha2::{Digest, Sha256};
@@ -62,8 +63,7 @@ where
             .ok_or_else(|| eyre!("network_pub_key not set"))?;
 
         // Get identity parameter for decryption
-        let hash_of_conditions = self.get_hashed_access_control_conditions_from_decrypt(&params)?;
-        let hash_of_conditions_str = hex::encode(&hash_of_conditions);
+        let hash_of_conditions_str = self.hash_access_control_conditions(&params)?;
         let identity_param = self.get_identity_param_for_encryption(
             &hash_of_conditions_str,
             &params.data_to_encrypt_hash,
@@ -176,33 +176,48 @@ where
         Ok(decrypted)
     }
 
-    /// Hash the access control conditions from decrypt request
-    fn get_hashed_access_control_conditions_from_decrypt(
-        &self,
-        params: &DecryptRequest,
-    ) -> Result<Vec<u8>> {
-        // Serialize the conditions to JSON exactly like lit-node does
-        let conditions_json = if let Some(ref conditions) = params.unified_access_control_conditions
-        {
-            serde_json::to_string(conditions)?
-        } else if let Some(ref conditions) = params.access_control_conditions {
-            serde_json::to_string(conditions)?
-        } else if let Some(ref conditions) = params.evm_contract_conditions {
-            serde_json::to_string(conditions)?
-        } else if let Some(ref conditions) = params.sol_rpc_conditions {
-            serde_json::to_string(conditions)?
-        } else {
-            return Err(eyre!("No access control conditions provided"));
-        };
-
-        debug!(
-            "stringified_access_control_conditions: {:?}",
-            conditions_json
-        );
-
-        // Hash the JSON string exactly like lit-node does
+    pub fn hash_access_control_conditions(&self, req: &DecryptRequest) -> Result<String> {
+        // hash the access control condition and thing to decrypt
         let mut hasher = Sha256::new();
-        hasher.update(conditions_json.as_bytes());
-        Ok(hasher.finalize().to_vec())
+
+        // we need to check if we got passed an access control condition or an evm contract condition
+        if let Some(access_control_conditions) = &req.access_control_conditions {
+            let stringified_access_control_conditions =
+                serde_json::to_string(access_control_conditions)?;
+            debug!(
+                "stringified_access_control_conditions: {:?}",
+                stringified_access_control_conditions
+            );
+            hasher.update(stringified_access_control_conditions.as_bytes());
+        } else if let Some(evm_contract_conditions) = &req.evm_contract_conditions {
+            let stringified_access_control_conditions =
+                serde_json::to_string(evm_contract_conditions)?;
+            debug!(
+                "stringified_access_control_conditions: {:?}",
+                stringified_access_control_conditions
+            );
+            hasher.update(stringified_access_control_conditions.as_bytes());
+        } else if let Some(_) = &req.sol_rpc_conditions {
+            return Err(eyre!("SolRpcConditions are not supported for decryption"));
+        } else if let Some(unified_access_control_conditions) =
+            &req.unified_access_control_conditions
+        {
+            let stringified_access_control_conditions =
+                serde_json::to_string(unified_access_control_conditions)?;
+            debug!(
+                "stringified_access_control_conditions: {:?}",
+                stringified_access_control_conditions
+            );
+            hasher.update(stringified_access_control_conditions.as_bytes());
+        } else {
+            return Err(eyre!("Missing access control conditions"));
+        }
+
+        let hashed_access_control_conditions = utils::bytes_to_hex(hasher.finalize());
+        debug!(
+            "hashed access control conditions: {:?}",
+            hashed_access_control_conditions
+        );
+        Ok(hashed_access_control_conditions)
     }
 }
