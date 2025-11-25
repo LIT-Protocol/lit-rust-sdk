@@ -13,14 +13,11 @@ keywords = ["lit", "protocol", "pkp", "signing", "distributed"]
 categories = ["cryptography", "authentication", "web-programming"]
 
 [dependencies]
-tokio = { version = "1.40", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "2.0"
 hex = "0.4"
 rand = "0.8"
-url = "2.5"
 tracing = "0.1"
 dashmap = "6.0"
 dotenv = "0.15"
@@ -32,13 +29,14 @@ siwe-recap = "0.2.0"
 blsful = { version = "2.5.7", default-features = false, features = ["rust"] }
 elliptic-curve = "0.13"
 futures = "0.3"
-k256 = { version = "0.13", features = ["serde", "ecdsa", "arithmetic"] }
+k256 = { version = "0.13", features = ["serde", "arithmetic"] }
 serde_bare = "0.5.0"
-alloy = { version = "1.0.24", features = ["full"] }
+alloy = { version = "1.0.24", default-features = false, features = ["std", "essentials", "reqwest-rustls-tls"] }
 eyre = "0.6.12"
 sha2 = "0.10"
 ethabi = "18.0.0"
 
 [dev-dependencies]
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 tokio-test = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
