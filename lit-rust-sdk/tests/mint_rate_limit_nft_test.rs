@@ -24,7 +24,7 @@ async fn test_mint_rate_limit_nft() {
 
     println!("Using wallet address: {}", wallet.address());
 
-    let lit_network = LitNetwork::DatilTest;
+    let lit_network = LitNetwork::NagaTest;
 
     let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, lit_network)
         .await

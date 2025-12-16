@@ -33,7 +33,7 @@ async fn test_client_side_decryption_with_session_sigs() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -180,7 +180,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),

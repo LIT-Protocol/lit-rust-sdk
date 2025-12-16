@@ -23,7 +23,7 @@ async fn test_mint_pkp() {
 
     println!("Using wallet address: {}", wallet.address());
 
-    let lit_network = LitNetwork::DatilTest;
+    let lit_network = LitNetwork::NagaTest;
 
     let pkp_nft_address = resolve_address(Contract::PKPNFT, lit_network)
         .await

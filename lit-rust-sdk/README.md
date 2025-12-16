@@ -2,7 +2,7 @@
 
 A native Rust implementation of the Lit Protocol SDK, providing programmatic access to the Lit Network for distributed key management, conditional access control, and programmable signing.
 
-Currently in Beta and only supports Datil, DatilDev, and DatilTest networks.
+Currently in Beta and supports the Naga network (NagaDev, NagaTest, NagaStaging, NagaProto, and Naga mainnet).
 
 ## Features
 
@@ -12,7 +12,7 @@ Currently in Beta and only supports Datil, DatilDev, and DatilTest networks.
 - **Lit Actions**: Execute JavaScript code on the Lit Network with access to PKP signing capabilities
 - **Encryption & Decryption**: BLS encryption with access control conditions and client-side decryption
 - **Capacity Delegation**: Delegate network capacity using Rate Limit NFTs
-- **Multi-Network Support**: Connect to Datil, DatilDev, and DatilTest networks
+- **Multi-Network Support**: Connect to Naga, NagaDev, NagaTest, NagaStaging, and NagaProto networks
 - **Ethereum Wallet Integration**: Native support for Ethereum wallet authentication
 
 ## Installation
@@ -45,7 +45,7 @@ async fn main() {
 
     // Configure and connect to Lit Network
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),

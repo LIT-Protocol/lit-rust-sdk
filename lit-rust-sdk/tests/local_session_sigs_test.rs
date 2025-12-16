@@ -34,7 +34,7 @@ async fn test_local_session_sigs_hello_world() {
 
     // Configure and connect to Lit Network
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -120,7 +120,7 @@ async fn test_local_session_sigs_with_params() {
 
     // Configure and connect to Lit Network
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),

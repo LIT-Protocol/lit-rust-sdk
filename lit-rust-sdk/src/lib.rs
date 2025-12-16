@@ -14,7 +14,7 @@
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Configure the client
 //!     let config = LitNodeClientConfig {
-//!         lit_network: LitNetwork::DatilDev,
+//!         lit_network: LitNetwork::NagaDev,
 //!         alert_when_unauthorized: true,
 //!         debug: true,
 //!         connect_timeout: Duration::from_secs(30),
@@ -24,7 +24,7 @@
 //!     // Create and connect to the Lit Network
 //!     let mut client = LitNodeClient::new(config).await?;
 //!     client.connect().await?;
-//!     
+//!
 //!     println!("Connected to {} nodes", client.connected_nodes().len());
 //!     Ok(())
 //! }
@@ -36,7 +36,7 @@
 //! - **Session Signatures**: Generate and manage session signatures for authentication
 //! - **Lit Actions**: Execute JavaScript code on the Lit Network
 //! - **Capacity Delegation**: Delegate network capacity using Rate Limit NFTs
-//! - **Multi-Network Support**: Connect to Datil, DatilDev, and DatilTest networks
+//! - **Multi-Network Support**: Connect to Naga, NagaDev, NagaTest, NagaStaging, and NagaProto networks
 //!
 //! ## Main Components
 //!

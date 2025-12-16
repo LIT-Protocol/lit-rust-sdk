@@ -32,7 +32,7 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),

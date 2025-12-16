@@ -23,7 +23,7 @@ async fn test_get_pkp_session_sigs() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev, // Using dev network for testing
+        lit_network: LitNetwork::NagaDev, // Using Naga dev network for testing
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),

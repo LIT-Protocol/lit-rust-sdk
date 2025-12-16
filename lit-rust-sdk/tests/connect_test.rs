@@ -2,13 +2,13 @@ use lit_rust_sdk::{LitNetwork, LitNodeClient, LitNodeClientConfig};
 use std::time::Duration;
 
 #[tokio::test]
-async fn test_connect_to_datil_dev() {
+async fn test_connect_to_naga_dev() {
     // Initialize tracing for debugging
     tracing_subscriber::fmt::init();
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -67,9 +67,9 @@ async fn test_connect_to_datil_dev() {
 }
 
 #[tokio::test]
-async fn test_connect_to_datil_test() {
+async fn test_connect_to_naga_test() {
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilTest,
+        lit_network: LitNetwork::NagaTest,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -82,7 +82,7 @@ async fn test_connect_to_datil_test() {
 
     match client.connect().await {
         Ok(()) => {
-            println!("Successfully connected to Lit Test Network!");
+            println!("Successfully connected to Naga Test Network!");
             assert!(client.is_ready());
 
             let connected_nodes = client.connected_nodes();
@@ -98,13 +98,13 @@ async fn test_connect_to_datil_test() {
 }
 
 #[tokio::test]
-async fn test_connect_to_datil() {
+async fn test_connect_to_naga() {
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::Datil,
+        lit_network: LitNetwork::Naga,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
-        check_node_attestation: true, // Enable attestation for test network
+        check_node_attestation: true, // Enable attestation for mainnet
     };
 
     let mut client = LitNodeClient::new(config)
@@ -113,7 +113,7 @@ async fn test_connect_to_datil() {
 
     match client.connect().await {
         Ok(()) => {
-            println!("Successfully connected to Lit Test Network!");
+            println!("Successfully connected to Naga Mainnet!");
             assert!(client.is_ready());
 
             let connected_nodes = client.connected_nodes();

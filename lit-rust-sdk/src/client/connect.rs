@@ -45,9 +45,11 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
     async fn get_network_info(
         &self,
     ) -> Result<Staking::getActiveUnkickedValidatorStructsAndCountsReturn> {
+        // Naga networks use realmId = 1 by default
+        let realm_id = alloy::primitives::U256::from(1);
         let network_info = self
             .staking
-            .getActiveUnkickedValidatorStructsAndCounts()
+            .getActiveUnkickedValidatorStructsAndCounts(realm_id)
             .call()
             .await?;
         Ok(network_info)
@@ -119,12 +121,23 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         let body_text = response.text().await?;
         info!("Handshake response body: {}", body_text);
 
-        let handshake_response: HandshakeResponse =
+        // Parse the API response wrapper first
+        let api_response: crate::types::ApiResponse<HandshakeResponse> =
             serde_json::from_str(&body_text).map_err(|e| {
                 warn!("Failed to parse handshake response: {}", e);
                 eyre::eyre!(e)
             })?;
-        Ok(handshake_response)
+
+        if !api_response.ok {
+            return Err(eyre::eyre!(format!(
+                "Handshake failed: {}",
+                api_response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
+            )));
+        }
+
+        Ok(api_response.data)
     }
 
     // async fn current_epoch_state(&self) -> Result<Staking::Epoch> {

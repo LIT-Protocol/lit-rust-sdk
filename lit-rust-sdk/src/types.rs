@@ -9,9 +9,19 @@ pub struct HandshakeRequest {
     pub challenge: String,
 }
 
+/// Wrapper for Lit Protocol API responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiResponse<T> {
+    pub ok: bool,
+    pub error: Option<String>,
+    #[serde(rename = "errorObject")]
+    pub error_object: Option<serde_json::Value>,
+    pub data: T,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandshakeResponse {
-    #[serde(rename = "serverPublicKey")]
+    #[serde(rename = "serverPublicKey", default)]
     pub server_pub_key: String,
     #[serde(rename = "subnetPublicKey")]
     pub subnet_pub_key: String,
@@ -27,6 +37,15 @@ pub struct HandshakeResponse {
     pub client_sdk_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attestation: Option<serde_json::Value>,
+    /// Node identity key - new in Naga
+    #[serde(rename = "nodeIdentityKey", skip_serializing_if = "Option::is_none")]
+    pub node_identity_key: Option<String>,
+    /// Node version - new in Naga
+    #[serde(rename = "nodeVersion", skip_serializing_if = "Option::is_none")]
+    pub node_version: Option<String>,
+    /// Epoch number
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub epoch: Option<u64>,
 }
 
 #[derive(Debug, Clone)]

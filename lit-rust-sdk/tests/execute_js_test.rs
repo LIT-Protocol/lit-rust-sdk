@@ -41,7 +41,7 @@ async fn test_execute_js_hello_world() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -280,7 +280,7 @@ go();
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -359,7 +359,7 @@ go();
 }
 
 #[tokio::test]
-async fn test_execute_js_with_capacity_delegation_datil() {
+async fn test_execute_js_with_capacity_delegation_naga() {
     // This test validates the complete capacity delegation flow:
     // 1. Mint a PKP NFT
     // 2. Mint a Rate Limit NFT
@@ -384,14 +384,14 @@ async fn test_execute_js_with_capacity_delegation_datil() {
     let ethereum_wallet = EthereumWallet::from(wallet.clone());
     let blockchain_provider = ProviderBuilder::new()
         .wallet(ethereum_wallet)
-        .connect(LitNetwork::Datil.rpc_url())
+        .connect(LitNetwork::Naga.rpc_url())
         .await
         .expect("Failed to connect to Ethereum network");
 
     // Step 1: Mint a PKP NFT for this test
     println!("🔐 Minting PKP NFT for capacity delegation test...");
 
-    let pkp_nft_address = resolve_address(Contract::PKPNFT, LitNetwork::Datil)
+    let pkp_nft_address = resolve_address(Contract::PKPNFT, LitNetwork::Naga)
         .await
         .expect("Failed to resolve PKP NFT contract address");
 
@@ -486,7 +486,7 @@ async fn test_execute_js_with_capacity_delegation_datil() {
     // Step 2: Mint a Rate Limit NFT inline for capacity delegation
     println!("🎫 Minting Rate Limit NFT for capacity delegation test...");
 
-    let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, LitNetwork::Datil)
+    let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, LitNetwork::Naga)
         .await
         .expect("Failed to resolve Rate Limit NFT contract address");
 
@@ -563,9 +563,9 @@ async fn test_execute_js_with_capacity_delegation_datil() {
     // Step 2: Now test capacity delegation with the freshly minted NFT
     println!("🔄 Setting up Lit Network client for capacity delegation...");
 
-    // Create client configuration for datil-dev (better connectivity than datil-test)
+    // Create client configuration for naga-dev (better connectivity than naga-test)
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::Datil,
+        lit_network: LitNetwork::Naga,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -579,7 +579,7 @@ async fn test_execute_js_with_capacity_delegation_datil() {
 
     match client.connect().await {
         Ok(()) => {
-            println!("✅ Connected to Lit Network (datil)");
+            println!("✅ Connected to Lit Network (naga)");
         }
         Err(e) => {
             println!("❌ Failed to connect to Lit Network: {}", e);
@@ -675,12 +675,12 @@ async fn test_execute_js_with_capacity_delegation_datil() {
             println!("❌ Failed to get session signatures: {}", e);
             println!("This test validates that the capacity delegation signature is correct");
             println!("If this fails, it means the signature format or Rate Limit NFT is invalid");
-            panic!("Capacity delegation test failed - signature rejected by datil network");
+            panic!("Capacity delegation test failed - signature rejected by naga network");
         }
     };
 
     // Now execute the Lit Action with the capacity delegation!
-    println!("🚀 Executing Lit Action with Rate Limit NFT capacity delegation on datil...");
+    println!("🚀 Executing Lit Action with Rate Limit NFT capacity delegation on naga...");
     let execute_params = ExecuteJsParams {
         code: Some(HELLO_WORLD_LIT_ACTION.to_string()),
         ipfs_id: None,
@@ -691,7 +691,7 @@ async fn test_execute_js_with_capacity_delegation_datil() {
 
     match client.execute_js(execute_params).await {
         Ok(response) => {
-            println!("🎉 Lit Action executed successfully with Rate Limit NFT capacity delegation on datil!");
+            println!("🎉 Lit Action executed successfully with Rate Limit NFT capacity delegation on naga!");
             println!("📤 Response: {:?}", response.response);
             println!("📜 Logs: {}", response.logs);
 
@@ -767,7 +767,7 @@ async fn test_execute_js_with_auth_methods() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::NagaDev,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
