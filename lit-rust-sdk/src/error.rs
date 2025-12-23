@@ -27,3 +27,8 @@ impl From<reqwest::Error> for LitSdkError {
     }
 }
 
+impl From<lit_sdk::SdkError> for LitSdkError {
+    fn from(e: lit_sdk::SdkError) -> Self {
+        LitSdkError::Crypto(e.to_string())
+    }
+}

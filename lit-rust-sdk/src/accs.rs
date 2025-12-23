@@ -134,17 +134,14 @@ pub fn canonicalize_unified_access_control_conditions(
 
 /// Hash unified access control conditions using the same canonicalization + SHA-256
 /// scheme as the JS SDK. Supports `evmBasic`, `evmContract`, and `{ operator }` items.
-pub fn hash_unified_access_control_conditions(
-    unified: &Value,
-) -> Result<Vec<u8>, LitSdkError> {
+pub fn hash_unified_access_control_conditions(unified: &Value) -> Result<Vec<u8>, LitSdkError> {
     let canonical = canonicalize_unified_access_control_conditions(unified)?;
     let arr = canonical.as_array().unwrap();
     if arr.is_empty() {
         return Err(LitSdkError::Accs("no conditions provided".into()));
     }
 
-    let to_hash = serde_json::to_string(arr)
-        .map_err(|e| LitSdkError::Accs(e.to_string()))?;
+    let to_hash = serde_json::to_string(arr).map_err(|e| LitSdkError::Accs(e.to_string()))?;
 
     let mut hasher = Sha256::new();
     hasher.update(to_hash.as_bytes());
@@ -158,9 +155,9 @@ pub fn hash_unified_access_control_conditions(
 pub fn canonicalize_access_control_conditions(
     access_control_conditions: &Value,
 ) -> Result<Value, LitSdkError> {
-    let arr = access_control_conditions.as_array().ok_or_else(|| {
-        LitSdkError::Accs("accessControlConditions must be an array".into())
-    })?;
+    let arr = access_control_conditions
+        .as_array()
+        .ok_or_else(|| LitSdkError::Accs("accessControlConditions must be an array".into()))?;
 
     let canonical_items = arr
         .iter()
@@ -181,8 +178,7 @@ pub fn hash_access_control_conditions(
         return Err(LitSdkError::Accs("no conditions provided".into()));
     }
 
-    let to_hash =
-        serde_json::to_string(arr).map_err(|e| LitSdkError::Accs(e.to_string()))?;
+    let to_hash = serde_json::to_string(arr).map_err(|e| LitSdkError::Accs(e.to_string()))?;
 
     let mut hasher = Sha256::new();
     hasher.update(to_hash.as_bytes());

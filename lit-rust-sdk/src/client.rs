@@ -12,12 +12,13 @@ use crate::crypto::{
 use crate::e2ee::{wallet_decrypt, wallet_encrypt, EncryptedPayload, GenericEncryptedPayload};
 use crate::error::LitSdkError;
 use crate::network::{Endpoint, NetworkConfig};
+use crate::session::{issue_session_sigs, issue_session_sigs_with_max_price};
 use crate::sev_snp::SevSnp;
 use crate::types::{
-    DecryptParams, DecryptResponse, EncryptParams, EncryptResponse, HandshakeRequestData,
-    ExecuteJsResponse, OrchestrateHandshakeResponse, RawHandshakeResponse, ResolvedHandshakeResponse,
+    DecryptParams, DecryptResponse, EncryptParams, EncryptResponse, ExecuteJsResponse,
+    HandshakeRequestData, OrchestrateHandshakeResponse, RawHandshakeResponse,
+    ResolvedHandshakeResponse,
 };
-use crate::session::{issue_session_sigs, issue_session_sigs_with_max_price};
 use base64ct::Encoding;
 use ethers::providers::{Http, Provider};
 use ethers::types::{Address, U256};
@@ -283,8 +284,10 @@ impl LitClient {
             ));
         };
 
-        let identity_param =
-            format!("lit-accesscontrolcondition://{}/{}", conditions_hash_hex, data_hash_hex);
+        let identity_param = format!(
+            "lit-accesscontrolcondition://{}/{}",
+            conditions_hash_hex, data_hash_hex
+        );
         let identity_bytes = identity_param.as_bytes();
 
         let ciphertext_b64 = bls_encrypt(subnet_pub_key, &params.data_to_encrypt, identity_bytes)?;
@@ -302,7 +305,9 @@ impl LitClient {
         auth_context: &AuthContext,
         chain: &str,
     ) -> Result<DecryptResponse, LitSdkError> {
-        let res = self.decrypt_inner(params.clone(), auth_context, chain).await;
+        let res = self
+            .decrypt_inner(params.clone(), auth_context, chain)
+            .await;
         match res {
             Ok(v) => Ok(v),
             Err(e) if Self::is_node_payload_decryption_error(&e) => {
@@ -413,18 +418,15 @@ impl LitClient {
         let results = futures::future::join_all(requests).await;
         let batch = merge_encrypted_batch(results, threshold)?;
 
-        let decrypted_nodes: Vec<DecryptNodeResponse> = decrypt_batch_response(
-            &batch,
-            &jit,
-            |v| {
+        let decrypted_nodes: Vec<DecryptNodeResponse> =
+            decrypt_batch_response(&batch, &jit, |v| {
                 let data_val = v
                     .get("data")
                     .cloned()
                     .ok_or_else(|| LitSdkError::Network("missing data field".into()))?;
                 serde_json::from_value::<DecryptNodeResponse>(data_val)
                     .map_err(|e| LitSdkError::Network(e.to_string()))
-            },
-        )?;
+            })?;
 
         let shares_json: Vec<String> = decrypted_nodes
             .iter()
@@ -526,10 +528,9 @@ impl LitClient {
             )));
         }
 
-        let per_node_max_price =
-            options
-                .user_max_price_wei
-                .map(|p| p / ethers::types::U256::from(execute_threshold as u64));
+        let per_node_max_price = options
+            .user_max_price_wei
+            .map(|p| p / ethers::types::U256::from(execute_threshold as u64));
         let session_sigs = issue_session_sigs_with_max_price(
             &auth_context.session_key_pair,
             &auth_context.auth_config,
@@ -551,7 +552,8 @@ impl LitClient {
                 "nodeSet": node_set.clone(),
             });
             if let Some(code_str) = &code {
-                request_data["code"] = serde_json::json!(base64ct::Base64::encode_string(code_str.as_bytes()));
+                request_data["code"] =
+                    serde_json::json!(base64ct::Base64::encode_string(code_str.as_bytes()));
             }
             if let Some(id) = &ipfs_id {
                 request_data["ipfsId"] = serde_json::json!(id);
@@ -683,10 +685,9 @@ impl LitClient {
                 )));
             }
 
-            let combined = lit_utilities_wasm::combine_and_verify(shares)
-                .map_err(|e| LitSdkError::Crypto(format!("{e:?}")))?;
-            let combined_value: serde_json::Value = serde_json::from_str(&combined)
-                .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+            let combined = crate::crypto::combine_and_verify(shares)?;
+            let combined_value: serde_json::Value =
+                serde_json::from_str(&combined).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
             signatures.insert(sig_name, combined_value);
         }
 
@@ -998,8 +999,9 @@ impl LitClient {
             )));
         }
 
-        let most_common_siwe = most_common_value(node_values.iter().map(|v| v.siwe_message.clone()).collect())
-            .unwrap_or_else(|| siwe_message.clone());
+        let most_common_siwe =
+            most_common_value(node_values.iter().map(|v| v.siwe_message.clone()).collect())
+                .unwrap_or_else(|| siwe_message.clone());
 
         let sig_json = serde_json::to_string(&serde_json::json!({
             "ProofOfPossession": combined,
@@ -1236,13 +1238,9 @@ impl LitClient {
             )));
         }
 
-        let most_common_siwe = most_common_value(
-            node_values
-                .iter()
-                .map(|v| v.siwe_message.clone())
-                .collect(),
-        )
-        .unwrap_or_else(|| siwe_message.clone());
+        let most_common_siwe =
+            most_common_value(node_values.iter().map(|v| v.siwe_message.clone()).collect())
+                .unwrap_or_else(|| siwe_message.clone());
 
         let sig_json = serde_json::to_string(&serde_json::json!({
             "ProofOfPossession": combined,
@@ -1367,12 +1365,8 @@ impl LitClient {
         user_max_price_wei: Option<ethers::types::U256>,
         bypass_auto_hashing: bool,
     ) -> Result<serde_json::Value, LitSdkError> {
-        let to_sign_data = pkp_sign_message_bytes(
-            chain,
-            signing_scheme,
-            to_sign,
-            bypass_auto_hashing,
-        )?;
+        let to_sign_data =
+            pkp_sign_message_bytes(chain, signing_scheme, to_sign, bypass_auto_hashing)?;
 
         let jit = self.create_jit_context()?;
 
@@ -1454,12 +1448,11 @@ impl LitClient {
         let results = futures::future::join_all(requests).await;
         let batch = merge_encrypted_batch(results, threshold)?;
 
-        let node_values: Vec<serde_json::Value> =
-            decrypt_batch_response(&batch, &jit, |v| {
-                v.get("data")
-                    .cloned()
-                    .ok_or_else(|| LitSdkError::Network("missing data field".into()))
-            })?;
+        let node_values: Vec<serde_json::Value> = decrypt_batch_response(&batch, &jit, |v| {
+            v.get("data")
+                .cloned()
+                .ok_or_else(|| LitSdkError::Network("missing data field".into()))
+        })?;
 
         let combiner_shares: Vec<String> = node_values
             .iter()
@@ -1475,8 +1468,7 @@ impl LitClient {
             )));
         }
 
-        let combined = lit_utilities_wasm::combine_and_verify(combiner_shares)
-            .map_err(|e| LitSdkError::Crypto(format!("{e:?}")))?;
+        let combined = crate::crypto::combine_and_verify(combiner_shares)?;
 
         let combined_value: serde_json::Value =
             serde_json::from_str(&combined).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
@@ -1485,11 +1477,10 @@ impl LitClient {
     }
 
     async fn select_priced_nodes(&self, product_id: usize) -> Result<Vec<String>, LitSdkError> {
-        let rpc_url = self
-            .config
-            .rpc_url
-            .as_deref()
-            .ok_or_else(|| LitSdkError::Config("rpc_url is required for priced requests".into()))?;
+        let rpc_url =
+            self.config.rpc_url.as_deref().ok_or_else(|| {
+                LitSdkError::Config("rpc_url is required for priced requests".into())
+            })?;
         let price_feed_addr = price_feed_address_for(self.config.network).ok_or_else(|| {
             LitSdkError::Config(format!(
                 "unknown PriceFeed contract address for network {}",
@@ -1498,8 +1489,7 @@ impl LitClient {
         })?;
 
         let provider = Arc::new(
-            Provider::<Http>::try_from(rpc_url)
-                .map_err(|e| LitSdkError::Config(e.to_string()))?,
+            Provider::<Http>::try_from(rpc_url).map_err(|e| LitSdkError::Config(e.to_string()))?,
         );
         let contract = PriceFeedContract::new(price_feed_addr, provider);
 
@@ -1563,9 +1553,7 @@ impl LitClient {
             let server_key = &self.handshake.server_keys[url];
             let pk_hex = server_key.node_identity_key.trim_start_matches("0x");
             let pk_bytes = hex::decode(pk_hex).map_err(|e| {
-                LitSdkError::Config(format!(
-                    "invalid node identity key for {url}: {e}"
-                ))
+                LitSdkError::Config(format!("invalid node identity key for {url}: {e}"))
             })?;
             let mut pk32 = [0u8; 32];
             if pk_bytes.len() != 32 {
@@ -1614,15 +1602,19 @@ async fn send_node_request<T: serde::de::DeserializeOwned>(
         obj.insert("epoch".into(), serde_json::json!(epoch));
     }
 
-    let res = http.post(full_url).headers(headers).json(&body).send().await?;
+    let res = http
+        .post(full_url)
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await?;
     let status = res.status();
 
     if !status.is_success() {
         let text = res.text().await.unwrap_or_default();
         return Err(LitSdkError::Network(format!(
             "node request failed {}: {}",
-            status,
-            text
+            status, text
         )));
     }
 
@@ -1631,8 +1623,7 @@ async fn send_node_request<T: serde::de::DeserializeOwned>(
         Ok(parsed) => Ok(parsed),
         Err(err) => {
             if let Some(data) = value.get("data").cloned() {
-                serde_json::from_value::<T>(data)
-                    .map_err(|e| LitSdkError::Network(e.to_string()))
+                serde_json::from_value::<T>(data).map_err(|e| LitSdkError::Network(e.to_string()))
             } else {
                 Err(LitSdkError::Network(format!(
                     "unexpected response shape: {err}; body={value}"
@@ -1667,13 +1658,17 @@ async fn send_encrypted_node_request(
         obj.insert("epoch".into(), serde_json::json!(epoch));
     }
 
-    let res = http.post(full_url).headers(headers).json(&body).send().await?;
+    let res = http
+        .post(full_url)
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
 
-    let value: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|_| {
-        serde_json::json!({ "raw": text })
-    });
+    let value: serde_json::Value =
+        serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "raw": text }));
 
     if status.is_success() {
         if let Ok(parsed) = serde_json::from_value::<GenericEncryptedPayload>(value.clone()) {
@@ -1782,17 +1777,19 @@ where
     let mut out = vec![];
     for encrypted in &encrypted_result.values {
         let verification_key = encrypted.payload.verification_key.clone();
-        let secret = verification_to_secret.get(&verification_key).ok_or_else(|| {
-            LitSdkError::Network(format!(
-                "no secret key for verification key {verification_key}"
-            ))
-        })?;
+        let secret = verification_to_secret
+            .get(&verification_key)
+            .ok_or_else(|| {
+                LitSdkError::Network(format!(
+                    "no secret key for verification key {verification_key}"
+                ))
+            })?;
 
         let decrypted_bytes = wallet_decrypt(secret, encrypted)?;
-        let decrypted_text = String::from_utf8(decrypted_bytes)
+        let decrypted_text =
+            String::from_utf8(decrypted_bytes).map_err(|e| LitSdkError::Network(e.to_string()))?;
+        let json_val: serde_json::Value = serde_json::from_str(&decrypted_text)
             .map_err(|e| LitSdkError::Network(e.to_string()))?;
-        let json_val: serde_json::Value =
-            serde_json::from_str(&decrypted_text).map_err(|e| LitSdkError::Network(e.to_string()))?;
 
         out.push(extract(json_val)?);
     }
@@ -1970,8 +1967,7 @@ async fn orchestrate_handshake(
         }
 
         let core = resolve_handshake_response(&server_keys, &request_id)?;
-        let epoch = most_common_u64(server_keys.values().map(|k| k.epoch).collect())
-            .unwrap_or(0);
+        let epoch = most_common_u64(server_keys.values().map(|k| k.epoch).collect()).unwrap_or(0);
 
         Ok(OrchestrateHandshakeResponse {
             server_keys,
@@ -1982,14 +1978,12 @@ async fn orchestrate_handshake(
         })
     };
 
-    timeout(timeout_dur, fut)
-        .await
-        .map_err(|_| {
-            LitSdkError::Handshake(format!(
-                "handshake timed out after {}ms",
-                config.abort_timeout_ms
-            ))
-        })?
+    timeout(timeout_dur, fut).await.map_err(|_| {
+        LitSdkError::Handshake(format!(
+            "handshake timed out after {}ms",
+            config.abort_timeout_ms
+        ))
+    })?
 }
 
 async fn verify_sev_snp_attestation(
@@ -2012,9 +2006,8 @@ async fn verify_sev_snp_attestation(
         )));
     }
 
-    let challenge_bytes = hex::decode(challenge_hex).map_err(|e| {
-        LitSdkError::Handshake(format!("invalid attestation challenge hex: {e}"))
-    })?;
+    let challenge_bytes = hex::decode(challenge_hex)
+        .map_err(|e| LitSdkError::Handshake(format!("invalid attestation challenge hex: {e}")))?;
     if challenge_bytes.len() != 32 {
         return Err(LitSdkError::Handshake(format!(
             "attestation challenge must be 32 bytes; got {}",
@@ -2022,9 +2015,9 @@ async fn verify_sev_snp_attestation(
         )));
     }
 
-    let noonce_val = att_obj.get("noonce").ok_or_else(|| {
-        LitSdkError::Handshake("invalid attestation: missing noonce".into())
-    })?;
+    let noonce_val = att_obj
+        .get("noonce")
+        .ok_or_else(|| LitSdkError::Handshake("invalid attestation: missing noonce".into()))?;
     let noonce = parse_attestation_bytes(noonce_val, "noonce")?;
     if noonce != challenge_bytes {
         return Err(LitSdkError::Handshake(
@@ -2032,15 +2025,16 @@ async fn verify_sev_snp_attestation(
         ));
     }
 
-    let report_val = att_obj.get("report").ok_or_else(|| {
-        LitSdkError::Handshake("invalid attestation: missing report".into())
-    })?;
+    let report_val = att_obj
+        .get("report")
+        .ok_or_else(|| LitSdkError::Handshake("invalid attestation: missing report".into()))?;
     let report_bytes = parse_attestation_bytes(report_val, "report")?;
 
     let mut data_map: BTreeMap<String, Vec<u8>> = BTreeMap::new();
-    let data_obj = att_obj.get("data").and_then(|v| v.as_object()).ok_or_else(|| {
-        LitSdkError::Handshake("invalid attestation: missing data".into())
-    })?;
+    let data_obj = att_obj
+        .get("data")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| LitSdkError::Handshake("invalid attestation: missing data".into()))?;
     for (k, v) in data_obj {
         data_map.insert(k.clone(), parse_attestation_bytes(v, &format!("data.{k}"))?);
     }
@@ -2052,9 +2046,9 @@ async fn verify_sev_snp_attestation(
         }
     }
 
-    use sev::certs::snp::Certificate;
-    use sev::firmware::guest::AttestationReport;
-    use sev::parser::ByteParser;
+    use lit_sdk::sev::certs::snp::Certificate;
+    use lit_sdk::sev::firmware::guest::AttestationReport;
+    use lit_sdk::sev::parser::ByteParser;
 
     let report = AttestationReport::from_bytes(&report_bytes).map_err(|e| {
         LitSdkError::Handshake(format!("invalid SEV-SNP attestation report bytes: {e}"))
@@ -2078,14 +2072,10 @@ async fn verify_sev_snp_attestation(
     Ok(())
 }
 
-fn parse_attestation_bytes(
-    v: &serde_json::Value,
-    field: &str,
-) -> Result<Vec<u8>, LitSdkError> {
+fn parse_attestation_bytes(v: &serde_json::Value, field: &str) -> Result<Vec<u8>, LitSdkError> {
     match v {
-        serde_json::Value::String(s) => base64ct::Base64::decode_vec(s).map_err(|e| {
-            LitSdkError::Handshake(format!("invalid base64 for {field}: {e}"))
-        }),
+        serde_json::Value::String(s) => base64ct::Base64::decode_vec(s)
+            .map_err(|e| LitSdkError::Handshake(format!("invalid base64 for {field}: {e}"))),
         serde_json::Value::Array(arr) => {
             let mut out = Vec::with_capacity(arr.len());
             for (idx, entry) in arr.iter().enumerate() {
@@ -2103,9 +2093,7 @@ fn parse_attestation_bytes(
             }
             Ok(out)
         }
-        serde_json::Value::Null => Err(LitSdkError::Handshake(format!(
-            "invalid {field}: null"
-        ))),
+        serde_json::Value::Null => Err(LitSdkError::Handshake(format!("invalid {field}: null"))),
         other => Err(LitSdkError::Handshake(format!(
             "invalid {field}: expected base64 string or byte array, got {other}"
         ))),

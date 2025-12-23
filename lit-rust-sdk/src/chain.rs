@@ -527,7 +527,10 @@ async fn pkp_details_for_token_ids(
 /// Fetch a derived public key from the PubkeyRouter contract.
 ///
 /// Matches the JS SDK behavior used by `litClient.utils.getDerivedKeyId(...)`.
-pub async fn get_derived_pubkey(config: &NetworkConfig, derived_key_id: H256) -> Result<String, LitSdkError> {
+pub async fn get_derived_pubkey(
+    config: &NetworkConfig,
+    derived_key_id: H256,
+) -> Result<String, LitSdkError> {
     const DEFAULT_KEY_SET_ID: &str = "naga-keyset1";
 
     let provider = provider_from_config(config)?;
@@ -546,7 +549,11 @@ pub async fn get_derived_pubkey(config: &NetworkConfig, derived_key_id: H256) ->
 
     let router = PubkeyRouterContract::new(router_addr, provider);
     let pubkey_bytes: Bytes = router
-        .get_derived_pubkey(staking_addr, DEFAULT_KEY_SET_ID.to_string(), derived_key_id.0)
+        .get_derived_pubkey(
+            staking_addr,
+            DEFAULT_KEY_SET_ID.to_string(),
+            derived_key_id.0,
+        )
         .call()
         .await
         .map_err(|e| LitSdkError::Network(e.to_string()))?;
@@ -571,7 +578,11 @@ pub async fn view_pkps_by_address(
     let all_token_ids = token_ids_for_owner(&pkp_nft, owner_address).await;
 
     let total = all_token_ids.len();
-    let limit = if pagination.limit == 0 { 10 } else { pagination.limit };
+    let limit = if pagination.limit == 0 {
+        10
+    } else {
+        pagination.limit
+    };
     let offset = pagination.offset;
     let has_more = offset + limit < total;
 
@@ -617,7 +628,11 @@ pub async fn view_pkps_by_auth_data(
         .map_err(|e| LitSdkError::Network(e.to_string()))?;
 
     let total = token_ids.len();
-    let limit = if pagination.limit == 0 { 50 } else { pagination.limit };
+    let limit = if pagination.limit == 0 {
+        50
+    } else {
+        pagination.limit
+    };
     let offset = pagination.offset;
     let has_more = offset + limit < total;
 
@@ -698,9 +713,7 @@ impl<M: Middleware> PkpMintManager<M> {
         mut receipt: TransactionReceipt,
     ) -> Result<(TransactionReceipt, PkpData), LitSdkError> {
         if receipt.status.unwrap_or_default().as_u64() != 1 {
-            return Err(LitSdkError::Network(
-                "PKP mint transaction failed".into(),
-            ));
+            return Err(LitSdkError::Network("PKP mint transaction failed".into()));
         }
 
         match pkp_data_from_mint_receipt(&receipt) {
@@ -754,7 +767,11 @@ impl<M: Middleware> PkpMintManager<M> {
             .map_err(|e| LitSdkError::Network(e.to_string()))?
             .ok_or_else(|| LitSdkError::Network("mintNext tx dropped from mempool".into()))?;
         let (receipt, data) = self.receipt_with_pkp_data(hash, receipt).await?;
-        Ok(MintPkpTx { hash, receipt, data })
+        Ok(MintPkpTx {
+            hash,
+            receipt,
+            data,
+        })
     }
 
     pub async fn mint_next_and_add_auth_methods(
@@ -811,7 +828,11 @@ impl<M: Middleware> PkpMintManager<M> {
                 LitSdkError::Network("mintNextAndAddAuthMethods tx dropped from mempool".into())
             })?;
         let (receipt, data) = self.receipt_with_pkp_data(hash, receipt).await?;
-        Ok(MintPkpTx { hash, receipt, data })
+        Ok(MintPkpTx {
+            hash,
+            receipt,
+            data,
+        })
     }
 
     pub async fn mint_with_custom_auth(
@@ -823,9 +844,8 @@ impl<M: Middleware> PkpMintManager<M> {
         add_pkp_eth_address_as_permitted_address: bool,
         send_pkp_to_itself: bool,
     ) -> Result<MintPkpTx, LitSdkError> {
-        let scope_id = scope_id_for(scope).ok_or_else(|| {
-            LitSdkError::Config(format!("unsupported auth scope: {scope}"))
-        })?;
+        let scope_id = scope_id_for(scope)
+            .ok_or_else(|| LitSdkError::Config(format!("unsupported auth scope: {scope}")))?;
         let validation_ipfs_id = ipfs_cid_v0_to_bytes(validation_ipfs_cid_v0)?;
 
         self.mint_next_and_add_auth_methods(
@@ -950,7 +970,9 @@ impl<M: Middleware> PaymentManager<M> {
         let receipt = pending
             .await
             .map_err(|e| LitSdkError::Network(e.to_string()))?
-            .ok_or_else(|| LitSdkError::Network("requestWithdraw tx dropped from mempool".into()))?;
+            .ok_or_else(|| {
+                LitSdkError::Network("requestWithdraw tx dropped from mempool".into())
+            })?;
         Ok(PaymentTx { hash, receipt })
     }
 
@@ -1085,11 +1107,15 @@ impl PkpPermissionsContext {
         self.actions.iter().any(|a| a == ipfs_cid_v0)
     }
 
-    pub fn is_auth_method_permitted(&self, auth_method_type: U256, auth_method_id_hex: &str) -> bool {
+    pub fn is_auth_method_permitted(
+        &self,
+        auth_method_type: U256,
+        auth_method_id_hex: &str,
+    ) -> bool {
         let id = auth_method_id_hex.to_lowercase();
-        self.auth_methods.iter().any(|m| {
-            m.auth_method_type == auth_method_type && m.id.to_lowercase() == id
-        })
+        self.auth_methods
+            .iter()
+            .any(|m| m.auth_method_type == auth_method_type && m.id.to_lowercase() == id)
     }
 }
 
@@ -1131,7 +1157,10 @@ impl<M: Middleware> PkpPermissionsManager<M> {
             .call()
             .await
             .map_err(|e| LitSdkError::Network(e.to_string()))?;
-        Ok(actions.iter().map(|b| bytes_to_ipfs_cid_v0(b.as_ref())).collect())
+        Ok(actions
+            .iter()
+            .map(|b| bytes_to_ipfs_cid_v0(b.as_ref()))
+            .collect())
     }
 
     pub async fn is_permitted_address(&self, user: Address) -> Result<bool, LitSdkError> {
@@ -1205,7 +1234,9 @@ impl<M: Middleware> PkpPermissionsManager<M> {
             let scopes: Vec<String> = flags
                 .iter()
                 .enumerate()
-                .filter_map(|(i, enabled)| (*enabled && i < names.len()).then_some(names[i].to_string()))
+                .filter_map(|(i, enabled)| {
+                    (*enabled && i < names.len()).then_some(names[i].to_string())
+                })
                 .collect();
             auth_methods_with_scopes.push(PkpAuthMethodWithScopes {
                 auth_method_type: am.auth_method_type,

@@ -1,10 +1,10 @@
-use crate::auth::{AuthConfig, AuthSig, SessionKeyPair, LitAbility};
+use crate::auth::{AuthConfig, AuthSig, LitAbility, SessionKeyPair};
 use crate::error::LitSdkError;
-use ed25519_dalek::{SigningKey, Signer};
+use chrono::Timelike;
+use ed25519_dalek::{Signer, SigningKey};
 use ethers::types::U256;
 use serde_json::json;
 use std::collections::HashMap;
-use chrono::Timelike;
 
 /// Issue session signatures per node URL.
 pub fn issue_session_sigs(
@@ -62,13 +62,13 @@ pub fn issue_session_sigs_with_max_price(
         "expiration": auth_config.expiration,
     });
 
-    let secret_bytes =
-        hex::decode(session_key_pair.secret_key.trim_start_matches("0x"))
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
-    let signing_key =
-        SigningKey::from_bytes(&secret_bytes.try_into().map_err(|_| {
-            LitSdkError::Crypto("invalid session secret key length".into())
-        })?);
+    let secret_bytes = hex::decode(session_key_pair.secret_key.trim_start_matches("0x"))
+        .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+    let signing_key = SigningKey::from_bytes(
+        &secret_bytes
+            .try_into()
+            .map_err(|_| LitSdkError::Crypto("invalid session secret key length".into()))?,
+    );
 
     let mut out = HashMap::new();
     // By default, mirror JS unlimited maxPrice (Unsigned 128 max) if pricing is not provided.
@@ -84,8 +84,8 @@ pub fn issue_session_sigs_with_max_price(
             obj.insert("nodeAddress".into(), json!(url));
             obj.insert("maxPrice".into(), json!(max_price_hex.clone()));
         }
-        let signed_message = serde_json::to_string(&to_sign)
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+        let signed_message =
+            serde_json::to_string(&to_sign).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
         let sig = signing_key.sign(signed_message.as_bytes());
 
         out.insert(

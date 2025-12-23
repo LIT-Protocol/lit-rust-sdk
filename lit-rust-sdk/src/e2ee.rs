@@ -1,9 +1,9 @@
 use crate::error::LitSdkError;
+use chrono::Timelike;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use sodalite::{box_, box_keypair_seed, box_open};
-use chrono::Timelike;
 
 fn always_32_bytes(bytes: Vec<u8>) -> [u8; 32] {
     let mut out = [0u8; 32];
@@ -56,9 +56,7 @@ pub fn wallet_encrypt(
         .expect("valid nanosecond");
     let created_at_seconds = created_at_ms.timestamp() as u64;
     let timestamp = created_at_seconds.to_be_bytes();
-    let created_at_iso = created_at_ms
-        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-        .to_string();
+    let created_at_iso = created_at_ms.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
     let mut my_pk = [0u8; 32];
     let mut my_sk = *my_secret_key;
@@ -101,12 +99,13 @@ pub fn wallet_decrypt(
     data: &EncryptedPayload,
 ) -> Result<Vec<u8>, LitSdkError> {
     if data.version != "1" {
-        return Err(LitSdkError::Crypto("unsupported encrypted payload version".into()));
+        return Err(LitSdkError::Crypto(
+            "unsupported encrypted payload version".into(),
+        ));
     }
 
-    let created_at =
-        chrono::DateTime::parse_from_rfc3339(&data.payload.created_at)
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+    let created_at = chrono::DateTime::parse_from_rfc3339(&data.payload.created_at)
+        .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
     let created_at_seconds = created_at.timestamp() as u64;
     let timestamp = created_at_seconds.to_be_bytes();
 
@@ -114,14 +113,12 @@ pub fn wallet_decrypt(
     let mut my_sk = *my_secret_key;
     box_keypair_seed(&mut my_pk, &mut my_sk, my_secret_key);
 
-    let their_pk_bytes =
-        hex::decode(data.payload.verification_key.trim_start_matches("0x"))
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+    let their_pk_bytes = hex::decode(data.payload.verification_key.trim_start_matches("0x"))
+        .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
     let their_pk = always_32_bytes(their_pk_bytes);
 
-    let random_bytes =
-        hex::decode(data.payload.random.trim_start_matches("0x"))
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+    let random_bytes = hex::decode(data.payload.random.trim_start_matches("0x"))
+        .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
     if random_bytes.len() != 16 {
         return Err(LitSdkError::Crypto("invalid random length".into()));
     }
@@ -140,9 +137,8 @@ pub fn wallet_decrypt(
     let mut nonce = [0u8; 24];
     nonce.copy_from_slice(&aad_hash[..24]);
 
-    let c =
-        hex::decode(data.payload.ciphertext_and_tag.trim_start_matches("0x"))
-            .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
+    let c = hex::decode(data.payload.ciphertext_and_tag.trim_start_matches("0x"))
+        .map_err(|e| LitSdkError::Crypto(e.to_string()))?;
 
     let mut m = vec![0u8; c.len()];
     box_open(&mut m, &c, &nonce, &their_pk, &my_sk)

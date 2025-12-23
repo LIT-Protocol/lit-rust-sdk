@@ -1,4 +1,4 @@
-use lit_sdk::{create_lit_client, naga_dev, EncryptParams};
+use lit_rust_sdk::{create_lit_client, naga_dev, EncryptParams};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

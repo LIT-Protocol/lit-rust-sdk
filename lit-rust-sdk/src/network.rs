@@ -17,12 +17,30 @@ pub struct NagaEndpoints {
 }
 
 pub const NAGA_ENDPOINTS: NagaEndpoints = NagaEndpoints {
-    handshake: Endpoint { path: "/web/handshake", version: "/" },
-    sign_session_key: Endpoint { path: "/web/sign_session_key", version: "/v2" },
-    execute_js: Endpoint { path: "/web/execute", version: "/v2" },
-    pkp_sign: Endpoint { path: "/web/pkp/sign", version: "/v2" },
-    pkp_claim: Endpoint { path: "/web/pkp/claim", version: "/" },
-    encryption_sign: Endpoint { path: "/web/encryption/sign", version: "/v2" },
+    handshake: Endpoint {
+        path: "/web/handshake",
+        version: "/",
+    },
+    sign_session_key: Endpoint {
+        path: "/web/sign_session_key",
+        version: "/v2",
+    },
+    execute_js: Endpoint {
+        path: "/web/execute",
+        version: "/v2",
+    },
+    pkp_sign: Endpoint {
+        path: "/web/pkp/sign",
+        version: "/v2",
+    },
+    pkp_claim: Endpoint {
+        path: "/web/pkp/claim",
+        version: "/",
+    },
+    encryption_sign: Endpoint {
+        path: "/web/encryption/sign",
+        version: "/v2",
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -39,7 +57,9 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     pub fn endpoints(&self) -> Endpoints {
-        Endpoints { naga: self.endpoints.clone() }
+        Endpoints {
+            naga: self.endpoints.clone(),
+        }
     }
 
     pub fn with_bootstrap_urls<I, S>(mut self, urls: I) -> Self

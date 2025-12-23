@@ -1,5 +1,5 @@
 [package]
-name = "lit-sdk"
+name = "lit-rust-sdk"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
@@ -7,10 +7,6 @@ description = "Rust SDK for the Lit Protocol Naga network"
 
 [features]
 default = []
-# Enable BLS encryption/decryption via the upstream `lit-bls-wasm` crate.
-# This is optional because the upstream crate currently fails to compile
-# on some native toolchains.
-bls-wasm = ["dep:lit-bls-wasm"]
 
 [dependencies]
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "time"] }
@@ -24,22 +20,20 @@ hex = "0.4"
 base64ct = { version = "=1.5.3", features = ["alloc"] }
 rand = "0.8"
 futures = "0.3"
-sev = { version = "7.1", default-features = false, features = ["snp", "crypto_nossl"] }
-# Match the upstream lit-bls-wasm dependency to ensure signature-share compatibility.
-blsful = { version = "=3.0.0-pre8" }
-blsful2 = { version = "2.5.7", package = "blsful", default-features = false, features = ["rust"] }
 http = "0.2"
 iri-string = "0.6"
-lit-bls-wasm = { git = "https://github.com/LIT-Protocol/lit-bls-wasm", optional = true }
 sodalite = "0.4"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 siwe = "0.5"
 siwe-recap = "0.2"
 ethers = { version = "2", default-features = false, features = ["rustls", "abigen"] }
-lit-utilities-wasm = { path = "../../packages/wasm/rust", default-features = false, features = ["verify-only"] }
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 bs58 = "0.5"
+# Use the published lit-sdk crate which provides SEV-SNP, E2EE payload, signature combining, and BLS crypto
+lit-sdk = "2.0.1"
+# Pin multiexp to avoid incompatibility with elliptic-curve-tools 0.1.2
+multiexp = "=0.4.0"
 
 [dev-dependencies]
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }

@@ -260,8 +260,7 @@ impl WrappedKeysClient {
         user_max_price_wei: Option<U256>,
     ) -> Result<ExportPrivateKeyResult, LitSdkError> {
         let stored = self.get_encrypted_key(auth_context, id).await?;
-        let access_control_conditions =
-            pkp_access_control_conditions(&stored.metadata.pkp_address);
+        let access_control_conditions = pkp_access_control_conditions(&stored.metadata.pkp_address);
 
         let js_params = serde_json::json!({
             "pkpAddress": stored.metadata.pkp_address,
@@ -337,8 +336,14 @@ impl WrappedKeysClient {
         let request_id = random_request_id();
 
         let body = serde_json::to_value(params).map_err(|e| LitSdkError::Network(e.to_string()))?;
-        self.service_request(Method::POST, base_url, &session_sig, &request_id, Some(body))
-            .await
+        self.service_request(
+            Method::POST,
+            base_url,
+            &session_sig,
+            &request_id,
+            Some(body),
+        )
+        .await
     }
 
     pub async fn store_encrypted_key_batch(
@@ -407,8 +412,7 @@ impl WrappedKeysClient {
         user_max_price_wei: Option<U256>,
     ) -> Result<String, LitSdkError> {
         let stored = self.get_encrypted_key(auth_context, id).await?;
-        let access_control_conditions =
-            pkp_access_control_conditions(&stored.metadata.pkp_address);
+        let access_control_conditions = pkp_access_control_conditions(&stored.metadata.pkp_address);
 
         let cid = match network {
             WrappedKeysNetwork::Evm => CID_SIGN_MESSAGE_EVM,
@@ -452,16 +456,15 @@ impl WrappedKeysClient {
         user_max_price_wei: Option<U256>,
     ) -> Result<String, LitSdkError> {
         let stored = self.get_encrypted_key(auth_context, id).await?;
-        let access_control_conditions =
-            pkp_access_control_conditions(&stored.metadata.pkp_address);
+        let access_control_conditions = pkp_access_control_conditions(&stored.metadata.pkp_address);
 
         let cid = match network {
             WrappedKeysNetwork::Evm => CID_SIGN_TRANSACTION_EVM,
             WrappedKeysNetwork::Solana => CID_SIGN_TRANSACTION_SOLANA,
         };
 
-        let unsigned_tx_val =
-            serde_json::to_value(unsigned_transaction).map_err(|e| LitSdkError::Network(e.to_string()))?;
+        let unsigned_tx_val = serde_json::to_value(unsigned_transaction)
+            .map_err(|e| LitSdkError::Network(e.to_string()))?;
 
         let inner = if let Some(v) = versioned_transaction {
             serde_json::json!({
@@ -539,7 +542,10 @@ impl WrappedKeysClient {
             .iter()
             .map(|r| StoreEncryptedKeyParams {
                 ciphertext: r.generate_encrypted_private_key.ciphertext.clone(),
-                data_to_encrypt_hash: r.generate_encrypted_private_key.data_to_encrypt_hash.clone(),
+                data_to_encrypt_hash: r
+                    .generate_encrypted_private_key
+                    .data_to_encrypt_hash
+                    .clone(),
                 public_key: r.generate_encrypted_private_key.public_key.clone(),
                 key_type: r.network.key_type(),
                 memo: r.generate_encrypted_private_key.memo.clone(),
@@ -552,11 +558,11 @@ impl WrappedKeysClient {
 
         let mut results = vec![];
         for (idx, r) in action_results.into_iter().enumerate() {
-            let id = stored
-                .ids
-                .get(idx)
-                .cloned()
-                .ok_or_else(|| LitSdkError::Network("wrapped keys service returned fewer ids than requested".into()))?;
+            let id = stored.ids.get(idx).cloned().ok_or_else(|| {
+                LitSdkError::Network(
+                    "wrapped keys service returned fewer ids than requested".into(),
+                )
+            })?;
 
             results.push(BatchGeneratePrivateKeysActionResult {
                 generate_encrypted_private_key: GeneratePrivateKeyResultWithMemo {
@@ -569,7 +575,10 @@ impl WrappedKeysClient {
             });
         }
 
-        Ok(BatchGeneratePrivateKeysResult { pkp_address, results })
+        Ok(BatchGeneratePrivateKeysResult {
+            pkp_address,
+            results,
+        })
     }
 
     async fn service_request<T: serde::de::DeserializeOwned>(

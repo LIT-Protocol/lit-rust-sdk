@@ -1,4 +1,4 @@
-The goal of this project is to create a Rust SDK that lets you use Lit Protocol. There is a rust project that implements a limited version of the SDK at `lit-peer/rust/lit-node/lit-sdk`. We should import that and use as much of it as possible, and not rewrite anything that's already in that project.
+The goal of this project is to create a Rust SDK that lets you use Lit Protocol. There is a rust project that implements a limited version of the SDK at `lit-peer/rust/lit-node/lit-sdk` and available on crates.io as `lit-sdk`. We should import that and use as much of it as possible, and not rewrite anything that's already in that project.
 
 There is an existing JS SDK in the `js-sdk` folder which you can use as a reference when creating the rust SDK. Docs are available at https://naga.developer.litprotocol.com/sdk/introduction and the typedocs are at https://naga.developer.litprotocol.com/sdk/sdk-reference/lit-client/functions/createLitClient
 

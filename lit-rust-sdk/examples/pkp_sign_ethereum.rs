@@ -1,4 +1,4 @@
-use lit_sdk::{
+use lit_rust_sdk::{
     create_eth_wallet_auth_data, create_lit_client, naga_dev, naga_local, naga_mainnet, naga_proto,
     naga_staging, naga_test, AuthConfig, LitAbility, NetworkConfig, ResourceAbilityRequest,
 };
@@ -74,4 +74,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", serde_json::to_string_pretty(&signature)?);
     Ok(())
 }
-

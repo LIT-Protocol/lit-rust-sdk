@@ -142,12 +142,8 @@ pub enum LitAbility {
 impl LitAbility {
     pub fn as_str(&self) -> &'static str {
         match self {
-            LitAbility::AccessControlConditionDecryption => {
-                "access-control-condition-decryption"
-            }
-            LitAbility::AccessControlConditionSigning => {
-                "access-control-condition-signing"
-            }
+            LitAbility::AccessControlConditionDecryption => "access-control-condition-decryption",
+            LitAbility::AccessControlConditionSigning => "access-control-condition-signing",
             LitAbility::PKPSigning => "pkp-signing",
             LitAbility::PaymentDelegation => "lit-payment-delegation",
             LitAbility::LitActionExecution => "lit-action-execution",
@@ -160,9 +156,7 @@ impl LitAbility {
             "access-control-condition-decryption" => {
                 Some(LitAbility::AccessControlConditionDecryption)
             }
-            "access-control-condition-signing" => {
-                Some(LitAbility::AccessControlConditionSigning)
-            }
+            "access-control-condition-signing" => Some(LitAbility::AccessControlConditionSigning),
             "pkp-signing" => Some(LitAbility::PKPSigning),
             "lit-payment-delegation" => Some(LitAbility::PaymentDelegation),
             "lit-action-execution" => Some(LitAbility::LitActionExecution),
@@ -265,16 +259,8 @@ pub fn create_siwe_message_with_resources(
             None => BTreeMap::new(),
         };
 
-        cap.with_action_convert(
-            resource_key,
-            format!("{}/{}", ns, ability),
-            vec![nb_map],
-        )
-        .map_err(|e| {
-            LitSdkError::Config(format!(
-                "failed to add recap attenuation: {e}"
-            ))
-        })?;
+        cap.with_action_convert(resource_key, format!("{}/{}", ns, ability), vec![nb_map])
+            .map_err(|e| LitSdkError::Config(format!("failed to add recap attenuation: {e}")))?;
     }
 
     let message = cap

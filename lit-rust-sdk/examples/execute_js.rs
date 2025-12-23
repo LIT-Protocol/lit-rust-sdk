@@ -1,6 +1,6 @@
 use ethers::signers::{LocalWallet, Signer};
 use ethers::utils::to_checksum;
-use lit_sdk::{
+use lit_rust_sdk::{
     create_lit_client, create_siwe_message_with_resources, generate_session_key_pair, naga_dev,
     naga_local, naga_mainnet, naga_proto, naga_staging, naga_test, sign_siwe_with_eoa, AuthConfig,
     AuthContext, LitAbility, NetworkConfig, ResourceAbilityRequest,
@@ -97,7 +97,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!("response: {}", serde_json::to_string_pretty(&res.response)?);
-    println!("signatures: {}", serde_json::to_string_pretty(&res.signatures)?);
+    println!(
+        "signatures: {}",
+        serde_json::to_string_pretty(&res.signatures)?
+    );
     println!("logs:\n{}", res.logs);
     Ok(())
 }

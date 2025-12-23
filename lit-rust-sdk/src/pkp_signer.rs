@@ -89,7 +89,9 @@ impl PkpSigner {
         let sig_str = res
             .get("signature")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| LitSdkError::Crypto("pkpSign response missing signature field".into()))?;
+            .ok_or_else(|| {
+                LitSdkError::Crypto("pkpSign response missing signature field".into())
+            })?;
 
         let sig_str = sig_str.replace('"', "");
         let sig_hex = sig_str.trim_start_matches("0x");
@@ -125,9 +127,8 @@ impl PkpSigner {
             }
         }
 
-        let recid = recid.ok_or_else(|| {
-            LitSdkError::Crypto("failed to recover a valid recovery id".into())
-        })?;
+        let recid = recid
+            .ok_or_else(|| LitSdkError::Crypto("failed to recover a valid recovery id".into()))?;
 
         Ok((r, s, recid))
     }
@@ -163,10 +164,7 @@ impl Signer for PkpSigner {
 
     async fn sign_transaction(&self, tx: &TypedTransaction) -> Result<Signature, Self::Error> {
         let digest = tx.sighash().0;
-        let chain_id = tx
-            .chain_id()
-            .map(|id| id.as_u64())
-            .unwrap_or(self.chain_id);
+        let chain_id = tx.chain_id().map(|id| id.as_u64()).unwrap_or(self.chain_id);
         let (r, s, recid) = self.sign_digest(digest).await?;
 
         Ok(Signature {
@@ -180,9 +178,9 @@ impl Signer for PkpSigner {
         &self,
         payload: &T,
     ) -> Result<Signature, Self::Error> {
-        let digest = payload
-            .encode_eip712()
-            .map_err(|e| LitSdkError::Crypto(format!("failed to encode EIP-712 typed data: {e}")))?;
+        let digest = payload.encode_eip712().map_err(|e| {
+            LitSdkError::Crypto(format!("failed to encode EIP-712 typed data: {e}"))
+        })?;
         let (r, s, recid) = self.sign_digest(digest).await?;
         Ok(Signature {
             r,
