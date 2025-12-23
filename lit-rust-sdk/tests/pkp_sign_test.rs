@@ -155,43 +155,35 @@ async fn test_pkp_sign_ethereum() {
     let message = b"Hello from Rust SDK PKP signing test!";
     println!("Signing message: {}", String::from_utf8_lossy(message));
 
-    match client
+    let signature = client
         .pkp_sign_ethereum(&pkp_public_key, message, &auth_context, None)
         .await
-    {
-        Ok(signature) => {
-            println!(
-                "Signature: {}",
-                serde_json::to_string_pretty(&signature).unwrap()
-            );
+        .expect("Failed to sign message");
 
-            // Verify signature structure
-            assert!(
-                signature.get("r").is_some(),
-                "Signature should have 'r' component"
-            );
-            assert!(
-                signature.get("s").is_some(),
-                "Signature should have 's' component"
-            );
+    println!(
+        "Signature: {}",
+        serde_json::to_string_pretty(&signature).unwrap()
+    );
 
-            println!("PKP signing test passed!");
-        }
-        Err(e) => {
-            // Known issue: signature share format parsing can fail
-            // This is a SDK bug that needs investigation
-            let err_str = e.to_string();
-            if err_str.contains("unrecognized signature share format") {
-                println!("Note: Signature share format issue detected - this is a known SDK issue");
-                println!("Error: {}", err_str);
-                println!("The PKP signing was likely executed successfully on the nodes,");
-                println!("but the SDK failed to parse/combine the signature shares.");
-                // Don't fail the test for this known issue
-            } else {
-                panic!("Failed to sign message: {}", e);
-            }
-        }
-    }
+    // Verify signature structure - the combined signature has these fields
+    assert!(
+        signature.get("signature").is_some(),
+        "Signature should have 'signature' field"
+    );
+    assert!(
+        signature.get("verifying_key").is_some(),
+        "Signature should have 'verifying_key' field"
+    );
+    assert!(
+        signature.get("signed_data").is_some(),
+        "Signature should have 'signed_data' field"
+    );
+    assert!(
+        signature.get("recovery_id").is_some(),
+        "Signature should have 'recovery_id' field"
+    );
+
+    println!("PKP signing test passed!");
 }
 
 #[tokio::test]

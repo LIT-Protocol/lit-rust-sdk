@@ -3,9 +3,7 @@ use lit_sdk::lit_node_core::lit_rust_crypto::blsful::{
     self, inner_types::GroupEncoding, Bls12381G1Impl, Bls12381G2Impl, BlsSignatureImpl, Signature,
     SignatureShare,
 };
-use lit_sdk::lit_node_core::{
-    BlsSignedMessageShare, EcdsaSignedMessageShare, FrostSignedMessageShare, SignableOutput,
-};
+use lit_sdk::lit_node_core::SignableOutput;
 use serde::de::DeserializeOwned;
 
 /// Encrypt data with a BLS public key using time-lock encryption.
@@ -172,32 +170,9 @@ pub fn combine_and_verify(shares: Vec<String>) -> Result<String, LitSdkError> {
 }
 
 fn parse_signable_output(share_json: &str) -> Result<SignableOutput, LitSdkError> {
-    // Try parsing as each type to determine which it is
-    // ECDSA shares have "big_r" field, BLS have "signature_share" with different format,
-    // Frost has "signing_commitments"
-
-    let v: serde_json::Value =
-        serde_json::from_str(share_json).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
-
-    // Check for characteristic fields to determine type
-    if v.get("signing_commitments").is_some() || v.get("signingCommitments").is_some() {
-        // Frost/Schnorr signature share
-        let frost: FrostSignedMessageShare =
-            serde_json::from_str(share_json).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
-        Ok(SignableOutput::FrostSignedMessageShare(frost))
-    } else if v.get("big_r").is_some() || v.get("bigR").is_some() {
-        // ECDSA signature share
-        let ecdsa: EcdsaSignedMessageShare =
-            serde_json::from_str(share_json).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
-        Ok(SignableOutput::EcdsaSignedMessageShare(ecdsa))
-    } else if v.get("signature_share").is_some() || v.get("signatureShare").is_some() {
-        // BLS signature share
-        let bls: BlsSignedMessageShare =
-            serde_json::from_str(share_json).map_err(|e| LitSdkError::Crypto(e.to_string()))?;
-        Ok(SignableOutput::BlsSignedMessageShare(bls))
-    } else {
-        Err(LitSdkError::Crypto(
-            "unrecognized signature share format".into(),
-        ))
-    }
+    // The SignableOutput enum uses serde's default tagged serialization, so JSON comes in
+    // as {"EcdsaSignedMessageShare": {...}}, {"FrostSignedMessageShare": {...}}, etc.
+    // Serde handles this automatically when deserializing to the enum.
+    serde_json::from_str::<SignableOutput>(share_json)
+        .map_err(|e| LitSdkError::Crypto(format!("failed to parse signature share: {e}")))
 }
