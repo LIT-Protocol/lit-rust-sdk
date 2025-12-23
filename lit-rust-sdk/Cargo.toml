@@ -22,7 +22,6 @@ rand = "0.8"
 futures = "0.3"
 http = "0.2"
 iri-string = "0.6"
-sodalite = "0.4"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 siwe = "0.5"
 siwe-recap = "0.2"

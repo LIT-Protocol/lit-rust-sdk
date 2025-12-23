@@ -9,7 +9,10 @@ use crate::auth::{
 use crate::crypto::{
     bls_encrypt, bls_verify_and_decrypt_with_signature_shares, combine_bls_signature_shares,
 };
-use crate::e2ee::{wallet_decrypt, wallet_encrypt, EncryptedPayload, GenericEncryptedPayload};
+use crate::e2ee::{
+    wallet_decrypt, wallet_decrypt_with_any_key, wallet_encrypt, EncryptedPayload,
+    GenericEncryptedPayload,
+};
 use crate::error::LitSdkError;
 use crate::network::{Endpoint, NetworkConfig};
 use crate::session::{issue_session_sigs, issue_session_sigs_with_max_price};
@@ -1767,25 +1770,12 @@ where
         return Err(LitSdkError::Network("batch decrypt failed".into()));
     }
 
-    let mut verification_to_secret: HashMap<String, [u8; 32]> = HashMap::new();
-    for (_url, kp) in &jit.key_set {
-        let node_pk_hex = hex::encode(kp.public_key);
-        verification_to_secret.insert(node_pk_hex.clone(), kp.secret_key);
-        verification_to_secret.insert(format!("0x{node_pk_hex}"), kp.secret_key);
-    }
+    // Collect all secret keys for trying decryption
+    let secret_keys: Vec<[u8; 32]> = jit.key_set.values().map(|kp| kp.secret_key).collect();
 
     let mut out = vec![];
     for encrypted in &encrypted_result.values {
-        let verification_key = encrypted.payload.verification_key.clone();
-        let secret = verification_to_secret
-            .get(&verification_key)
-            .ok_or_else(|| {
-                LitSdkError::Network(format!(
-                    "no secret key for verification key {verification_key}"
-                ))
-            })?;
-
-        let decrypted_bytes = wallet_decrypt(secret, encrypted)?;
+        let decrypted_bytes = wallet_decrypt_with_any_key(&secret_keys, encrypted)?;
         let decrypted_text =
             String::from_utf8(decrypted_bytes).map_err(|e| LitSdkError::Network(e.to_string()))?;
         let json_val: serde_json::Value = serde_json::from_str(&decrypted_text)
