@@ -24,8 +24,7 @@ pub use chain::{
     PaymentManager, PaymentTx, PkpAuthMethod, PkpAuthMethodWithScopes, PkpData, PkpMintManager,
     PkpPermissionsContext, PkpPermissionsManager, WithdrawRequest, WithdrawRequestInfo,
 };
-pub use client::ExecuteJsOptions;
-pub use client::{create_lit_client, LitClient};
+pub use client::{create_lit_client, ExecuteJsOptions, LitClient};
 pub use error::LitSdkError;
 pub use network::{
     naga_dev, naga_local, naga_mainnet, naga_proto, naga_staging, naga_test, Endpoint,
