@@ -139,6 +139,24 @@ pub enum LitAbility {
     ResolvedAuthContext,
 }
 
+impl FromStr for LitAbility {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "access-control-condition-decryption" => {
+                Ok(LitAbility::AccessControlConditionDecryption)
+            }
+            "access-control-condition-signing" => Ok(LitAbility::AccessControlConditionSigning),
+            "pkp-signing" => Ok(LitAbility::PKPSigning),
+            "lit-payment-delegation" => Ok(LitAbility::PaymentDelegation),
+            "lit-action-execution" => Ok(LitAbility::LitActionExecution),
+            "lit-resolved-auth-context" => Ok(LitAbility::ResolvedAuthContext),
+            _ => Err(()),
+        }
+    }
+}
+
 impl LitAbility {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -148,20 +166,6 @@ impl LitAbility {
             LitAbility::PaymentDelegation => "lit-payment-delegation",
             LitAbility::LitActionExecution => "lit-action-execution",
             LitAbility::ResolvedAuthContext => "lit-resolved-auth-context",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "access-control-condition-decryption" => {
-                Some(LitAbility::AccessControlConditionDecryption)
-            }
-            "access-control-condition-signing" => Some(LitAbility::AccessControlConditionSigning),
-            "pkp-signing" => Some(LitAbility::PKPSigning),
-            "lit-payment-delegation" => Some(LitAbility::PaymentDelegation),
-            "lit-action-execution" => Some(LitAbility::LitActionExecution),
-            "lit-resolved-auth-context" => Some(LitAbility::ResolvedAuthContext),
-            _ => None,
         }
     }
 

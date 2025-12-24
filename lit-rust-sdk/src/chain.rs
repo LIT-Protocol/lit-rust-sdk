@@ -475,11 +475,9 @@ async fn token_ids_for_owner<M: Middleware>(
         let results = futures::future::join_all(calls).await;
 
         let mut successes = 0usize;
-        for r in results {
-            if let Ok(token_id) = r {
-                successes += 1;
-                out.push(token_id);
-            }
+        for token_id in results.into_iter().flatten() {
+            successes += 1;
+            out.push(token_id);
         }
 
         if successes == 0 {
@@ -659,7 +657,7 @@ pub async fn view_pkps_by_auth_data(
 fn pkp_data_from_mint_receipt(receipt: &TransactionReceipt) -> Result<PkpData, LitSdkError> {
     let event_sig = H256::from(keccak256("PKPMinted(uint256,bytes)".as_bytes()));
     for log in &receipt.logs {
-        if log.topics.get(0) != Some(&event_sig) || log.topics.len() < 2 {
+        if log.topics.first() != Some(&event_sig) || log.topics.len() < 2 {
             continue;
         }
 
@@ -717,7 +715,7 @@ impl<M: Middleware> PkpMintManager<M> {
         }
 
         match pkp_data_from_mint_receipt(&receipt) {
-            Ok(data) => return Ok((receipt, data)),
+            Ok(data) => Ok((receipt, data)),
             Err(err) => {
                 let mut last_err = err;
                 let middleware = self.pkp_nft.client();
@@ -774,6 +772,7 @@ impl<M: Middleware> PkpMintManager<M> {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn mint_next_and_add_auth_methods(
         &self,
         key_type: U256,
@@ -1100,7 +1099,7 @@ pub struct PkpPermissionsContext {
 
 impl PkpPermissionsContext {
     pub fn is_address_permitted(&self, address: Address) -> bool {
-        self.addresses.iter().any(|a| *a == address)
+        self.addresses.contains(&address)
     }
 
     pub fn is_action_permitted(&self, ipfs_cid_v0: &str) -> bool {

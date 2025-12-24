@@ -445,6 +445,7 @@ impl WrappedKeysClient {
         decode_lit_action_string(&lit_action_res)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn sign_transaction_with_encrypted_key<T: Serialize>(
         &self,
         auth_context: &AuthContext,

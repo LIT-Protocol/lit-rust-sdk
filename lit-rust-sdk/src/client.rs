@@ -816,7 +816,7 @@ impl LitClient {
                 auth_data,
                 auth_config,
                 session_key_pair,
-                user_max_price_wei.clone(),
+                user_max_price_wei,
             )
             .await;
         match res {
@@ -1042,7 +1042,7 @@ impl LitClient {
                 auth_config,
                 custom_auth_params,
                 session_key_pair,
-                user_max_price_wei.clone(),
+                user_max_price_wei,
             )
             .await;
         match res {
@@ -1317,6 +1317,7 @@ impl LitClient {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn pkp_sign_raw_with_options(
         &self,
         chain: &str,
@@ -1334,7 +1335,7 @@ impl LitClient {
                 pkp_pubkey,
                 to_sign,
                 auth_context,
-                user_max_price_wei.clone(),
+                user_max_price_wei,
                 bypass_auto_hashing,
             )
             .await;
@@ -1358,6 +1359,7 @@ impl LitClient {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn pkp_sign_raw_with_options_inner(
         &self,
         chain: &str,
@@ -1521,7 +1523,7 @@ impl LitClient {
         let mut candidates: Vec<(String, U256)> = nodes_and_prices
             .into_iter()
             .filter_map(|node| {
-                let price = node.prices.get(product_id)?.clone();
+                let price = *node.prices.get(product_id)?;
                 let url = format!(
                     "{}{}:{}",
                     self.config.http_protocol,
@@ -1793,6 +1795,7 @@ struct DecryptNodeResponse {
     #[serde(rename = "signatureShare")]
     signature_share: SignatureShareWrapper,
     #[serde(rename = "shareId")]
+    #[allow(dead_code)]
     share_id: String,
 }
 
@@ -1815,8 +1818,10 @@ struct ProofOfPossession {
 struct ExecuteJsNodeValue {
     success: bool,
     #[serde(default)]
+    #[allow(dead_code)]
     claim_data: HashMap<String, serde_json::Value>,
     #[serde(default)]
+    #[allow(dead_code)]
     decrypted_data: serde_json::Value,
     #[serde(default)]
     logs: String,
