@@ -10,6 +10,8 @@ ignore = [
     "RUSTSEC-2021-0141",  # dotenv unmaintained but safe
     "RUSTSEC-2024-0370",  # proc-macro-error unmaintained but safe
     "RUSTSEC-2024-0436",  # paste unmaintained but safe
+    "RUSTSEC-2023-0071", # rsa - key recovery side channel, but it's a dependency of the official sev crate and there's no update available yet.  side channel attacks on clients are generally not a concern for this SDK.
+    "RUSTSEC-2025-0009", # ring crate - aes functions may panic when overflow checking is enabled.  safe because we don't use aes at all.
 ]
 
 # Skip license checking entirely - focus only on security
