@@ -1,129 +1,121 @@
-use lit_rust_sdk::{LitNetwork, LitNodeClient, LitNodeClientConfig};
-use std::time::Duration;
+use lit_rust_sdk::{create_lit_client, naga_dev, naga_test};
+use std::env;
+
+fn get_rpc_url() -> Option<String> {
+    env::var("LIT_RPC_URL")
+        .or_else(|_| env::var("LIT_TXSENDER_RPC_URL"))
+        .or_else(|_| env::var("LIT_YELLOWSTONE_PRIVATE_RPC_URL"))
+        .or_else(|_| env::var("LOCAL_RPC_URL"))
+        .ok()
+}
 
 #[tokio::test]
-async fn test_connect_to_datil_dev() {
-    // Initialize tracing for debugging
-    tracing_subscriber::fmt::init();
+async fn test_connect_to_naga_dev() {
+    let _ = dotenvy::dotenv();
 
-    // Create client configuration
-    let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
-        alert_when_unauthorized: true,
-        debug: true,
-        connect_timeout: Duration::from_secs(30),
-        check_node_attestation: false,
+    let rpc_url = match get_rpc_url() {
+        Some(url) => url,
+        None => {
+            println!("Skipping test - no RPC URL configured");
+            println!("Set LIT_RPC_URL or LIT_TXSENDER_RPC_URL in .env");
+            return;
+        }
     };
 
-    // Create client
-    let mut client = LitNodeClient::new(config)
-        .await
-        .expect("Failed to create client");
+    let config = naga_dev().with_rpc_url(rpc_url);
 
-    // Connect to the network
-    match client.connect().await {
-        Ok(()) => {
-            println!("Successfully connected to Lit Network!");
+    match create_lit_client(config).await {
+        Ok(client) => {
+            println!("Successfully connected to Naga Dev Network!");
 
-            // Verify connection state
-            assert!(client.is_ready());
+            // Verify handshake data is available
+            let handshake = client.handshake_result();
 
-            let connected_nodes = client.connected_nodes();
-            println!("Connected to {} nodes:", connected_nodes.len());
-            for node in &connected_nodes {
+            assert!(
+                !handshake.connected_nodes.is_empty(),
+                "Should be connected to at least one node"
+            );
+            println!("Connected to {} nodes:", handshake.connected_nodes.len());
+            for node in &handshake.connected_nodes {
                 println!("  - {}", node);
             }
 
-            // Get connection state details
-            let state = client.get_connection_state();
-
             // Verify we have network keys
-            assert!(state.network_pub_key.is_some());
-            assert!(state.subnet_pub_key.is_some());
-            assert!(state.network_pub_key_set.is_some());
-            assert!(state.latest_blockhash.is_some());
+            assert!(
+                !handshake.core_node_config.subnet_pub_key.is_empty(),
+                "Should have subnet public key"
+            );
+            assert!(
+                !handshake.core_node_config.network_pub_key.is_empty(),
+                "Should have network public key"
+            );
+            assert!(
+                !handshake.core_node_config.latest_blockhash.is_empty(),
+                "Should have latest blockhash"
+            );
 
             println!("\nNetwork State:");
             println!(
                 "  Network Public Key: {}",
-                state.network_pub_key.as_ref().unwrap()
+                &handshake.core_node_config.network_pub_key
+                    [..40.min(handshake.core_node_config.network_pub_key.len())]
             );
             println!(
                 "  Subnet Public Key: {}",
-                state.subnet_pub_key.as_ref().unwrap()
+                &handshake.core_node_config.subnet_pub_key
+                    [..40.min(handshake.core_node_config.subnet_pub_key.len())]
             );
             println!(
                 "  Latest Blockhash: {}",
-                state.latest_blockhash.as_ref().unwrap()
+                handshake.core_node_config.latest_blockhash
+            );
+            println!("  Epoch: {}", handshake.epoch);
+            println!("  Threshold: {}", handshake.threshold);
+
+            // Verify minimum node count (threshold)
+            assert!(
+                handshake.connected_nodes.len() >= handshake.threshold,
+                "Should have at least threshold nodes connected"
             );
 
-            // Verify minimum node count
-            assert!(connected_nodes.len() >= 2);
+            println!("Test passed!");
         }
         Err(e) => {
-            panic!("Failed to connect to Lit Network: {}", e);
+            panic!("Failed to connect to Naga Dev Network: {}", e);
         }
     }
 }
 
 #[tokio::test]
-async fn test_connect_to_datil_test() {
-    let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilTest,
-        alert_when_unauthorized: true,
-        debug: true,
-        connect_timeout: Duration::from_secs(30),
-        check_node_attestation: true, // Enable attestation for test network
+async fn test_connect_to_naga_test() {
+    let _ = dotenvy::dotenv();
+
+    let rpc_url = match get_rpc_url() {
+        Some(url) => url,
+        None => {
+            println!("Skipping test - no RPC URL configured");
+            return;
+        }
     };
 
-    let mut client = LitNodeClient::new(config)
-        .await
-        .expect("Failed to create client");
+    let config = naga_test().with_rpc_url(rpc_url);
 
-    match client.connect().await {
-        Ok(()) => {
-            println!("Successfully connected to Lit Test Network!");
-            assert!(client.is_ready());
+    match create_lit_client(config).await {
+        Ok(client) => {
+            println!("Successfully connected to Naga Test Network!");
 
-            let connected_nodes = client.connected_nodes();
-            println!("Connected to {} nodes", connected_nodes.len());
-            assert!(!connected_nodes.is_empty());
+            let handshake = client.handshake_result();
+            println!("Connected to {} nodes", handshake.connected_nodes.len());
+
+            assert!(
+                !handshake.connected_nodes.is_empty(),
+                "Should be connected to at least one node"
+            );
         }
         Err(e) => {
-            // This is expected to fail for now since we haven't implemented
-            // the full validator discovery from the staking contract
-            println!("Expected failure (not fully implemented): {}", e);
-        }
-    }
-}
-
-#[tokio::test]
-async fn test_connect_to_datil() {
-    let config = LitNodeClientConfig {
-        lit_network: LitNetwork::Datil,
-        alert_when_unauthorized: true,
-        debug: true,
-        connect_timeout: Duration::from_secs(30),
-        check_node_attestation: true, // Enable attestation for test network
-    };
-
-    let mut client = LitNodeClient::new(config)
-        .await
-        .expect("Failed to create client");
-
-    match client.connect().await {
-        Ok(()) => {
-            println!("Successfully connected to Lit Test Network!");
-            assert!(client.is_ready());
-
-            let connected_nodes = client.connected_nodes();
-            println!("Connected to {} nodes", connected_nodes.len());
-            assert!(!connected_nodes.is_empty());
-        }
-        Err(e) => {
-            // This is expected to fail for now since we haven't implemented
-            // the full validator discovery from the staking contract
-            println!("Expected failure (not fully implemented): {}", e);
+            // This might fail if the test network is not available
+            println!("Failed to connect to Naga Test Network: {}", e);
+            println!("This may be expected if naga-test network is not available");
         }
     }
 }
