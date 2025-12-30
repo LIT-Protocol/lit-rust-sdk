@@ -65,7 +65,7 @@ async fn test_local_session_sigs_hello_world() {
 
     // Generate local session signatures without a PKP
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
         .await
         .expect("Failed to create local session signatures");
 
@@ -151,7 +151,7 @@ async fn test_local_session_sigs_with_params() {
 
     // Generate local session signatures without a PKP
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
         .await
         .expect("Failed to create local session signatures");
 

@@ -1,5 +1,8 @@
+use alloy::{network::EthereumWallet, primitives::U256, providers::ProviderBuilder};
+use chrono::{Datelike, TimeZone};
 use lit_rust_sdk::{
-    auth::load_wallet_from_env,
+    auth::{load_wallet_from_env, EthWalletProvider},
+    blockchain::{resolve_address, Contract, RateLimitNFT},
     types::{
         AccessControlCondition, DecryptRequest, EncryptRequest, LitAbility,
         LitResourceAbilityRequest, LitResourceAbilityRequestResource, ReturnValueTest,
@@ -33,7 +36,7 @@ async fn test_client_side_decryption_with_session_sigs() {
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::Datil,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -96,6 +99,72 @@ async fn test_client_side_decryption_with_session_sigs() {
         }
     };
 
+    // Mint a Rate Limit NFT for capacity credits
+    println!("🔄 Minting Rate Limit NFT for capacity credits...");
+
+    let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, LitNetwork::Datil)
+        .await
+        .expect("Failed to resolve Rate Limit NFT address");
+
+    let ethereum_wallet = EthereumWallet::from(wallet.clone());
+    let provider = ProviderBuilder::new()
+        .wallet(ethereum_wallet)
+        .connect(LitNetwork::Datil.rpc_url())
+        .await
+        .expect("Failed to connect to provider");
+
+    let rate_limit_nft = RateLimitNFT::new(rate_limit_nft_address, provider);
+
+    // Calculate expiration (20 days from now at midnight UTC)
+    let future_date = chrono::Utc::now() + chrono::Duration::days(20);
+    let midnight = chrono::Utc
+        .with_ymd_and_hms(
+            future_date.year(),
+            future_date.month(),
+            future_date.day(),
+            0,
+            0,
+            0,
+        )
+        .single()
+        .unwrap();
+    let expires_at = U256::from(midnight.timestamp() as u64);
+    let requests_per_kilosecond = U256::from(1000);
+
+    let cost = rate_limit_nft
+        .calculateCost(requests_per_kilosecond, expires_at)
+        .call()
+        .await
+        .expect("Failed to calculate cost");
+
+    println!("💰 Rate Limit NFT cost: {} wei", cost);
+
+    let receipt = rate_limit_nft
+        .mint(expires_at)
+        .value(cost)
+        .send()
+        .await
+        .expect("Failed to mint Rate Limit NFT")
+        .get_receipt()
+        .await
+        .expect("Failed to get receipt");
+
+    // Extract token ID from Transfer event log
+    let token_id = U256::from_be_bytes(receipt.logs()[0].topics()[3].0);
+    println!("✅ Rate Limit NFT minted! Token ID: {}", token_id);
+
+    // Create capacity delegation auth sig - delegate to our own wallet
+    let capacity_auth_sig = EthWalletProvider::create_capacity_delegation_auth_sig(
+        &wallet,
+        &token_id.to_string(),
+        &[wallet.address().to_string()],
+        "10",
+    )
+    .await
+    .expect("Failed to create capacity delegation auth sig");
+
+    println!("✅ Created capacity delegation auth sig");
+
     // Now let's prepare to decrypt by getting session signatures
     let resource_ability_requests = vec![LitResourceAbilityRequest {
         resource: LitResourceAbilityRequestResource {
@@ -109,7 +178,12 @@ async fn test_client_side_decryption_with_session_sigs() {
 
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
+        .get_local_session_sigs(
+            &wallet,
+            resource_ability_requests,
+            &expiration,
+            Some(capacity_auth_sig),
+        )
         .await
         .expect("Failed to create local session signatures");
 
@@ -180,7 +254,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
 
     // Create client configuration
     let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
+        lit_network: LitNetwork::Datil,
         alert_when_unauthorized: true,
         debug: true,
         connect_timeout: Duration::from_secs(30),
@@ -259,6 +333,72 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
         }
     };
 
+    // Mint a Rate Limit NFT for capacity credits
+    println!("🔄 Minting Rate Limit NFT for capacity credits...");
+
+    let rate_limit_nft_address = resolve_address(Contract::RateLimitNFT, LitNetwork::Datil)
+        .await
+        .expect("Failed to resolve Rate Limit NFT address");
+
+    let ethereum_wallet = EthereumWallet::from(wallet.clone());
+    let provider = ProviderBuilder::new()
+        .wallet(ethereum_wallet)
+        .connect(LitNetwork::Datil.rpc_url())
+        .await
+        .expect("Failed to connect to provider");
+
+    let rate_limit_nft = RateLimitNFT::new(rate_limit_nft_address, provider);
+
+    // Calculate expiration (20 days from now at midnight UTC)
+    let future_date = chrono::Utc::now() + chrono::Duration::days(20);
+    let midnight = chrono::Utc
+        .with_ymd_and_hms(
+            future_date.year(),
+            future_date.month(),
+            future_date.day(),
+            0,
+            0,
+            0,
+        )
+        .single()
+        .unwrap();
+    let expires_at = U256::from(midnight.timestamp() as u64);
+    let requests_per_kilosecond = U256::from(1000);
+
+    let cost = rate_limit_nft
+        .calculateCost(requests_per_kilosecond, expires_at)
+        .call()
+        .await
+        .expect("Failed to calculate cost");
+
+    println!("💰 Rate Limit NFT cost: {} wei", cost);
+
+    let receipt = rate_limit_nft
+        .mint(expires_at)
+        .value(cost)
+        .send()
+        .await
+        .expect("Failed to mint Rate Limit NFT")
+        .get_receipt()
+        .await
+        .expect("Failed to get receipt");
+
+    // Extract token ID from Transfer event log
+    let token_id = U256::from_be_bytes(receipt.logs()[0].topics()[3].0);
+    println!("✅ Rate Limit NFT minted! Token ID: {}", token_id);
+
+    // Create capacity delegation auth sig - delegate to our own wallet
+    let capacity_auth_sig = EthWalletProvider::create_capacity_delegation_auth_sig(
+        &wallet,
+        &token_id.to_string(),
+        &[wallet.address().to_string()],
+        "10",
+    )
+    .await
+    .expect("Failed to create capacity delegation auth sig");
+
+    println!("✅ Created capacity delegation auth sig");
+
     // Now let's prepare to decrypt by getting session signatures
     let resource_ability_requests = vec![LitResourceAbilityRequest {
         resource: LitResourceAbilityRequestResource {
@@ -272,7 +412,12 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
 
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
+        .get_local_session_sigs(
+            &wallet,
+            resource_ability_requests,
+            &expiration,
+            Some(capacity_auth_sig),
+        )
         .await
         .expect("Failed to create local session signatures");
 

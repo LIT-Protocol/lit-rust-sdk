@@ -117,7 +117,7 @@ async fn test_encrypt_and_decrypt_with_session_sigs() {
 
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
         .await
         .expect("Failed to create local session signatures");
 
