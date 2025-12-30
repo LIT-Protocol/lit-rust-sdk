@@ -109,7 +109,7 @@ async fn test_client_side_decryption_with_session_sigs() {
 
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
         .await
         .expect("Failed to create local session signatures");
 
@@ -272,7 +272,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
 
     println!("🔄 Getting session signatures for decryption...");
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
         .await
         .expect("Failed to create local session signatures");
 

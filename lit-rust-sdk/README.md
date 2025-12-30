@@ -69,7 +69,7 @@ async fn main() {
 
     let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, None)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
         .await
         .expect("Failed to create session signatures");
 

@@ -17,7 +17,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
         wallet: &PrivateKeySigner,
         resource_ability_requests: Vec<LitResourceAbilityRequest>,
         expiration: &str,
-        capacity_delegation_auth_sig: Option<AuthSig>,
+        capability_auth_sigs: Vec<AuthSig>,
     ) -> Result<SessionSignatures> {
         if !self.ready {
             return Err(eyre::eyre!("Lit Node Client not connected"));
@@ -51,9 +51,7 @@ impl<P: alloy::providers::Provider> super::LitNodeClient<P> {
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
         let mut capabilities = vec![auth_sig];
-        if let Some(capacity_auth_sig) = capacity_delegation_auth_sig {
-            capabilities.push(capacity_auth_sig);
-        }
+        capabilities.extend(capability_auth_sigs);
 
         for node_url in self.connected_nodes() {
             let session_key_signed_message = SessionKeySignedMessage {

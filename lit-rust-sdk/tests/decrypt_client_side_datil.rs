@@ -182,7 +182,7 @@ async fn test_client_side_decryption_with_session_sigs() {
             &wallet,
             resource_ability_requests,
             &expiration,
-            Some(capacity_auth_sig),
+            vec![capacity_auth_sig],
         )
         .await
         .expect("Failed to create local session signatures");
@@ -416,7 +416,7 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
             &wallet,
             resource_ability_requests,
             &expiration,
-            Some(capacity_auth_sig),
+            vec![capacity_auth_sig],
         )
         .await
         .expect("Failed to create local session signatures");
