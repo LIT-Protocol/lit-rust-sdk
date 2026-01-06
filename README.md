@@ -110,7 +110,7 @@ async fn main() {
     // Generate session signatures with your wallet (no PKP needed!)
     let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
     let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration)
+        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
         .await
         .expect("Failed to create local session signatures");
 
@@ -291,6 +291,7 @@ let session_sigs = client
         &wallet,
         resource_ability_requests,
         &expiration,
+        vec![],
     )
     .await?;
 
