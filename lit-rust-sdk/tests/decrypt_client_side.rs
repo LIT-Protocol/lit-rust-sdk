@@ -107,7 +107,10 @@ async fn test_client_side_decryption_with_session_sigs() {
         "📦 Ciphertext length: {} chars",
         encrypt_response.ciphertext_base64.len()
     );
-    println!("🔗 Data hash: {}", encrypt_response.data_to_encrypt_hash_hex);
+    println!(
+        "🔗 Data hash: {}",
+        encrypt_response.data_to_encrypt_hash_hex
+    );
 
     // Now prepare to decrypt by creating session signatures
     let session_key_pair = generate_session_key_pair();
@@ -275,7 +278,10 @@ async fn test_client_side_decryption_with_session_sigs_and_evm_contract_conditio
         "📦 Ciphertext length: {} chars",
         encrypt_response.ciphertext_base64.len()
     );
-    println!("🔗 Data hash: {}", encrypt_response.data_to_encrypt_hash_hex);
+    println!(
+        "🔗 Data hash: {}",
+        encrypt_response.data_to_encrypt_hash_hex
+    );
 
     // Now prepare to decrypt by creating session signatures
     let session_key_pair = generate_session_key_pair();
