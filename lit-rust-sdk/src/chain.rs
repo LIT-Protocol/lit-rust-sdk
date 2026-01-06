@@ -1039,7 +1039,7 @@ impl<M: Middleware> PaymentManager<M> {
         if now_secs >= execute_time {
             Ok((true, None, wr))
         } else {
-            Ok((false, Some((execute_time - now_secs) as u64), wr))
+            Ok((false, Some(execute_time - now_secs), wr))
         }
     }
 }
