@@ -1,398 +1,91 @@
-use blsful::{Bls12381G2Impl, SignatureShare as BlsfulSignatureShare};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HandshakeRequest {
-    #[serde(rename = "clientPublicKey")]
+use crate::network::NagaEndpoints;
+
+#[derive(Clone, Debug)]
+pub struct Endpoints {
+    pub naga: NagaEndpoints,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HandshakeRequestData {
     pub client_public_key: String,
     pub challenge: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HandshakeResponse {
-    #[serde(rename = "serverPublicKey")]
-    pub server_pub_key: String,
-    #[serde(rename = "subnetPublicKey")]
-    pub subnet_pub_key: String,
-    #[serde(rename = "networkPublicKey")]
-    pub network_pub_key: String,
-    #[serde(rename = "networkPublicKeySet")]
-    pub network_pub_key_set: String,
-    #[serde(rename = "hdRootPubkeys")]
-    pub hd_root_pubkeys: Vec<String>,
-    #[serde(rename = "latestBlockhash")]
-    pub latest_blockhash: String,
-    #[serde(rename = "clientSdkVersion", skip_serializing_if = "Option::is_none")]
-    pub client_sdk_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub attestation: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone)]
-pub struct NodeConnectionInfo {
-    pub url: String,
-    pub handshake_response: HandshakeResponse,
-}
-
-#[derive(Debug, Clone)]
-pub struct ConnectionState {
-    pub connected_nodes: Vec<String>,
-    pub server_keys: HashMap<String, HandshakeResponse>,
-    pub subnet_pub_key: Option<String>,
-    pub network_pub_key: Option<String>,
-    pub network_pub_key_set: Option<String>,
-    pub hd_root_pubkeys: Option<Vec<String>>,
-    pub latest_blockhash: Option<String>,
-}
-
-// PKP related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PKP {
-    #[serde(rename = "tokenId")]
-    pub token_id: String,
-    #[serde(rename = "publicKey")]
-    pub public_key: String,
-    #[serde(rename = "ethAddress")]
-    pub eth_address: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthSig {
-    pub sig: String,
-    #[serde(rename = "derivedVia")]
-    pub derived_via: String,
-    #[serde(rename = "signedMessage")]
-    pub signed_message: String,
-    pub address: String,
-    pub algo: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthMethod {
-    #[serde(rename = "authMethodType")]
-    pub auth_method_type: u32,
-    #[serde(rename = "accessToken")]
-    pub access_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LitResourceAbilityRequest {
-    pub resource: LitResourceAbilityRequestResource,
-    pub ability: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LitResourceAbilityRequestResource {
-    /// The resource ID
-    pub resource: String,
-    /// The resource prefix
-    pub resource_prefix: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum LitAbility {
-    // Used by top level auth sigs
-    AccessControlConditionDecryption,
-    AccessControlConditionSigning,
-    PKPSigning,
-    RateLimitIncreaseAuth,
-    LitActionExecution,
-}
-
-impl fmt::Display for LitAbility {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LitAbility::AccessControlConditionDecryption => {
-                write!(f, "access-control-condition-decryption")
-            }
-            LitAbility::AccessControlConditionSigning => {
-                write!(f, "access-control-condition-signing")
-            }
-            LitAbility::PKPSigning => write!(f, "pkp-signing"),
-            LitAbility::RateLimitIncreaseAuth => write!(f, "rate-limit-increase-auth"),
-            LitAbility::LitActionExecution => write!(f, "lit-action-execution"),
-        }
-    }
-}
-
-// TODO: use these with helpers for creating resource ability requests
-// USER DEFINED
-// const LIT_RESOURCE_PREFIX_ACC: &str = "lit-accesscontrolcondition";
-// const LIT_RESOURCE_PREFIX_PKP: &str = "lit-pkp";
-// const LIT_RESOURCE_PREFIX_RLI: &str = "lit-ratelimitincrease";
-// const LIT_RESOURCE_PREFIX_LA: &str = "lit-litaction";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionSignature {
-    pub sig: String,
-    #[serde(rename = "derivedVia")]
-    pub derived_via: String,
-    #[serde(rename = "signedMessage")]
-    pub signed_message: String,
-    pub address: String,
-    pub algo: Option<String>,
-}
-
-pub type SessionSignatures = HashMap<String, SessionSignature>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignSessionKeyRequest {
-    #[serde(rename = "sessionKey")]
-    pub session_key: String,
-    #[serde(rename = "authMethods")]
-    pub auth_methods: Vec<AuthMethod>,
-    #[serde(rename = "pkpPublicKey")]
-    pub pkp_public_key: String,
-    #[serde(rename = "siweMessage")]
-    pub siwe_message: String,
-    #[serde(rename = "curveType")]
-    pub curve_type: String,
-    #[serde(rename = "epoch", skip_serializing_if = "Option::is_none")]
     pub epoch: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CapacityDelegationRequest {
-    #[serde(rename = "capacityTokenId")]
-    pub capacity_token_id: String,
-    #[serde(rename = "delegateeAddresses")]
-    pub delegatee_addresses: Vec<String>,
-    pub uses: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionKeySignedMessage {
-    pub session_key: String,
-    pub resource_ability_requests: Vec<LitResourceAbilityRequest>,
-    pub capabilities: Vec<AuthSig>,
-    pub issued_at: String,
-    pub expiration: String,
-    pub node_address: String,
-}
-
-// Execute JS types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecuteJsParams {
-    pub code: Option<String>,
-    #[serde(rename = "ipfsId")]
-    pub ipfs_id: Option<String>,
-    #[serde(rename = "sessionSigs")]
-    pub session_sigs: SessionSignatures,
-    #[serde(rename = "authMethods")]
-    pub auth_methods: Option<Vec<AuthMethod>>,
-    #[serde(rename = "jsParams")]
-    pub js_params: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecuteJsResponse {
-    pub claims: HashMap<String, serde_json::Value>,
-    pub signatures: Option<serde_json::Value>,
-    pub decryptions: Vec<serde_json::Value>,
-    pub response: serde_json::Value,
-    pub logs: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeShare {
-    pub success: bool,
-    #[serde(rename = "signedData")]
-    pub signed_data: HashMap<String, SignedData>,
-    #[serde(rename = "claimData")]
-    pub claim_data: HashMap<String, serde_json::Value>,
-    pub response: serde_json::Value,
-    pub logs: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignedData {
-    pub sig_type: String,
-    pub data_signed: String,
-    pub signature_share: String,
-    pub share_index: u32,
-    pub big_r: String,
-    pub public_key: String,
-    pub sig_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct JsonSignSessionKeyResponseV1 {
-    pub result: String,
-    pub signature_share: BlsfulSignatureShare<Bls12381G2Impl>,
-    pub share_index: u32,
-    pub curve_type: String,
-    pub siwe_message: String,
-    pub data_signed: String,
-    pub bls_root_pubkey: String,
-}
-
-// Access Control Condition types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccessControlCondition {
-    pub contract_address: String,
-    pub chain: String,
-    pub standard_contract_type: String,
-    pub method: String,
-    pub parameters: Vec<String>,
-    pub return_value_test: ReturnValueTest,
-}
-
-// For unified access control conditions, we need a version with conditionType
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UnifiedAccessControlConditionItem {
-    pub condition_type: String,
-    pub contract_address: String,
-    pub standard_contract_type: String,
-    pub chain: String,
-    pub method: String,
-    pub parameters: Vec<String>,
-    pub return_value_test: ReturnValueTest,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EvmContractCondition {
-    pub contract_address: String,
-    pub function_name: String,
-    pub function_params: Vec<String>,
-    pub function_abi: ethabi::Function,
-    pub chain: String,
-    pub return_value_test: ReturnValueTestV2,
-}
-
-// For unified access control conditions, we need a version with conditionType
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UnifiedEvmContractConditionItem {
-    pub condition_type: String,
-    pub contract_address: String,
-    pub function_name: String,
-    pub function_params: Vec<String>,
-    pub function_abi: serde_json::Value,
-    pub chain: String,
-    pub return_value_test: ReturnValueTest,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SolRpcCondition {
-    pub method: String,
-    pub params: Vec<serde_json::Value>,
-    pub chain: String,
-    pub return_value_test: ReturnValueTest,
-}
-
-// For unified access control conditions, we need a version with conditionType
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UnifiedSolRpcConditionItem {
-    pub condition_type: String,
-    pub method: String,
-    pub params: Vec<serde_json::Value>,
-    pub chain: String,
-    pub return_value_test: ReturnValueTest,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UnifiedAccessControlCondition {
-    AccessControl(UnifiedAccessControlConditionItem),
-    EvmContract(UnifiedEvmContractConditionItem),
-    SolRpc(UnifiedSolRpcConditionItem),
-    Operator(OperatorCondition),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OperatorCondition {
-    pub operator: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReturnValueTest {
-    pub comparator: String,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReturnValueTestV2 {
-    pub key: String,
-    pub comparator: String,
-    pub value: String,
-}
-
-// Encryption related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EncryptRequest {
-    pub data_to_encrypt: Vec<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EncryptResponse {
-    pub ciphertext: String,
-    pub data_to_encrypt_hash: String,
-}
-
-// Decryption related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DecryptRequest {
-    pub ciphertext: String,
-    pub data_to_encrypt_hash: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain: Option<String>,
-    pub session_sigs: SessionSignatures,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EncryptionSignRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_control_conditions: Option<Vec<AccessControlCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub evm_contract_conditions: Option<Vec<EvmContractCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sol_rpc_conditions: Option<Vec<SolRpcCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unified_access_control_conditions: Option<Vec<UnifiedAccessControlCondition>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain: Option<String>,
-    pub data_to_encrypt_hash: String,
-    pub auth_sig: AuthSig,
+pub struct RawHandshakeResponse {
+    pub server_public_key: String,
+    pub subnet_public_key: String,
+    pub network_public_key: String,
+    pub network_public_key_set: String,
+    pub client_sdk_version: String,
+    pub hd_root_pubkeys: Vec<String>,
     #[serde(default)]
+    pub attestation: Option<serde_json::Value>,
+    pub latest_blockhash: String,
+    pub node_version: String,
+    pub epoch: u64,
+    pub node_identity_key: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedHandshakeResponse {
+    pub subnet_pub_key: String,
+    pub network_pub_key: String,
+    pub network_pub_key_set: String,
+    pub hd_root_pubkeys: Vec<String>,
+    pub latest_blockhash: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct OrchestrateHandshakeResponse {
+    pub server_keys: HashMap<String, RawHandshakeResponse>,
+    pub connected_nodes: Vec<String>,
+    pub core_node_config: ResolvedHandshakeResponse,
+    pub threshold: usize,
     pub epoch: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EncryptionSignResponse {
-    pub result: String,
-    pub signature_share: BlsfulSignatureShare<Bls12381G2Impl>,
-    pub share_index: u32,
+#[derive(Debug, Clone)]
+pub struct EncryptParams {
+    pub data_to_encrypt: Vec<u8>,
+    pub unified_access_control_conditions: Option<serde_json::Value>,
+    pub hashed_access_control_conditions_hex: Option<String>,
+    pub metadata: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+pub struct EncryptResponse {
+    pub ciphertext_base64: String,
+    pub data_to_encrypt_hash_hex: String,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecryptParams {
+    pub ciphertext_base64: String,
+    pub data_to_encrypt_hash_hex: String,
+    pub unified_access_control_conditions: Option<serde_json::Value>,
+    pub hashed_access_control_conditions_hex: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct DecryptResponse {
     pub decrypted_data: Vec<u8>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecuteJsResponse {
+    pub success: bool,
+    pub signatures: HashMap<String, serde_json::Value>,
+    pub response: serde_json::Value,
+    pub logs: String,
 }

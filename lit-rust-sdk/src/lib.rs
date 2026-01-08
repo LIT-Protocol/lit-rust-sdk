@@ -1,66 +1,44 @@
-//! # Lit Protocol Rust SDK
-//!
-//! A native Rust implementation of the Lit Protocol SDK, providing programmatic access
-//! to the Lit Network for distributed key management, conditional access control,
-//! and programmable signing.
-//!
-//! ## Quick Start
-//!
-//! ```no_run
-//! use lit_rust_sdk::{LitNetwork, LitNodeClient, LitNodeClientConfig};
-//! use std::time::Duration;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Configure the client
-//!     let config = LitNodeClientConfig {
-//!         lit_network: LitNetwork::DatilDev,
-//!         alert_when_unauthorized: true,
-//!         debug: true,
-//!         connect_timeout: Duration::from_secs(30),
-//!         check_node_attestation: false,
-//!     };
-//!
-//!     // Create and connect to the Lit Network
-//!     let mut client = LitNodeClient::new(config).await?;
-//!     client.connect().await?;
-//!     
-//!     println!("Connected to {} nodes", client.connected_nodes().len());
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Features
-//!
-//! - **PKP Management**: Mint and manage Programmable Key Pairs (PKPs)
-//! - **Session Signatures**: Generate and manage session signatures for authentication
-//! - **Lit Actions**: Execute JavaScript code on the Lit Network
-//! - **Capacity Delegation**: Delegate network capacity using Rate Limit NFTs
-//! - **Multi-Network Support**: Connect to Datil, DatilDev, and DatilTest networks
-//!
-//! ## Main Components
-//!
-//! - [`LitNodeClient`]: Main client for interacting with the Lit Network
-//! - [`LitNodeClientConfig`]: Configuration for the client
-//! - [`ExecuteJsParams`]: Parameters for executing Lit Actions
-//! - [`auth::EthWalletProvider`]: Ethereum wallet authentication provider
-//!
-//! For comprehensive documentation and examples, see the
-//! [GitHub repository](https://github.com/LIT-Protocol/rust-sdk).
-
+pub mod accs;
 pub mod auth;
-pub mod blockchain;
-pub mod bls;
+pub mod chain;
 pub mod client;
-pub mod config;
+pub mod crypto;
+pub mod e2ee;
+pub mod error;
+pub mod network;
+pub mod pkp_signer;
+pub mod session;
+pub(crate) mod sev_snp;
 pub mod types;
-pub mod utils;
+pub mod wrapped_keys;
 
-pub use client::LitNodeClient;
-pub use config::{LitNetwork, LitNodeClientConfig};
+pub use auth::{
+    auth_config_from_delegation_auth_sig, create_eth_wallet_auth_data,
+    create_siwe_message_with_resources, generate_session_key_pair, pkp_eth_address_from_pubkey,
+    sign_siwe_with_eoa, validate_delegation_auth_sig, AuthConfig, AuthContext, AuthData, AuthSig,
+    CustomAuthParams, LitAbility, ResourceAbilityRequest, SessionKeyPair,
+};
+pub use chain::{
+    auth_method_id_for_eth_wallet, get_derived_pubkey, view_pkps_by_address,
+    view_pkps_by_auth_data, MintPkpTx, PaginatedPkps, Pagination, PaginationInfo, PaymentBalance,
+    PaymentManager, PaymentTx, PkpAuthMethod, PkpAuthMethodWithScopes, PkpData, PkpMintManager,
+    PkpPermissionsContext, PkpPermissionsManager, WithdrawRequest, WithdrawRequestInfo,
+};
+pub use client::{create_lit_client, ExecuteJsOptions, LitClient};
+pub use error::LitSdkError;
+pub use network::{
+    naga_dev, naga_local, naga_mainnet, naga_proto, naga_staging, naga_test, Endpoint,
+    NagaEndpoints, NetworkConfig,
+};
+pub use pkp_signer::PkpSigner;
 pub use types::{
-    AccessControlCondition, AuthMethod, AuthSig, DecryptRequest, DecryptResponse, EncryptRequest,
-    EncryptResponse, EncryptionSignRequest, EncryptionSignResponse, EvmContractCondition,
-    ExecuteJsParams, ExecuteJsResponse, ReturnValueTest, SessionSignatures, SolRpcCondition,
-    UnifiedAccessControlCondition, UnifiedAccessControlConditionItem, PKP,
+    DecryptParams, DecryptResponse, EncryptParams, EncryptResponse, ExecuteJsResponse,
+};
+
+pub use wrapped_keys::{
+    BatchGeneratePrivateKeysParams, BatchGeneratePrivateKeysResult, ExportPrivateKeyResult,
+    GenerateKeyParams, GeneratePrivateKeyAction, GeneratePrivateKeyResult, ImportPrivateKeyResult,
+    SignMessageParams, StoreEncryptedKeyBatchResult, StoreEncryptedKeyParams,
+    StoreEncryptedKeyResult, StoredKeyData, StoredKeyMetadata, WrappedKeysClient,
+    WrappedKeysKeyType, WrappedKeysNetwork,
 };

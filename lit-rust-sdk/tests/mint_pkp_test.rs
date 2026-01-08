@@ -1,110 +1,128 @@
-use alloy::{
-    network::EthereumWallet, primitives::U256, providers::ProviderBuilder,
-    signers::local::PrivateKeySigner,
-};
-use lit_rust_sdk::{
-    blockchain::{resolve_address, Contract, PKPNFT},
-    LitNetwork,
-};
-use std::str::FromStr;
+use ethers::prelude::*;
+use ethers::signers::{LocalWallet, Signer};
+use lit_rust_sdk::{naga_dev, PkpMintManager};
+use std::env;
+use std::sync::Arc;
+
+fn normalize_0x_hex(s: String) -> String {
+    if s.starts_with("0x") {
+        s
+    } else {
+        format!("0x{s}")
+    }
+}
+
+fn get_rpc_url() -> Option<String> {
+    env::var("LIT_RPC_URL")
+        .or_else(|_| env::var("LIT_TXSENDER_RPC_URL"))
+        .or_else(|_| env::var("LIT_YELLOWSTONE_PRIVATE_RPC_URL"))
+        .or_else(|_| env::var("LOCAL_RPC_URL"))
+        .ok()
+}
+
+fn get_eoa_private_key() -> Option<String> {
+    env::var("LIT_EOA_PRIVATE_KEY")
+        .or_else(|_| env::var("ETHEREUM_PRIVATE_KEY"))
+        .or_else(|_| env::var("LIVE_MASTER_ACCOUNT"))
+        .or_else(|_| env::var("LOCAL_MASTER_ACCOUNT"))
+        .ok()
+        .map(normalize_0x_hex)
+}
 
 #[tokio::test]
 async fn test_mint_pkp() {
-    tracing_subscriber::fmt::init();
+    let _ = dotenvy::dotenv();
 
-    dotenv::from_path("../.env").ok();
-    dotenv::from_path(".env").ok();
+    let rpc_url = match get_rpc_url() {
+        Some(url) => url,
+        None => {
+            println!("Skipping test - no RPC URL configured");
+            println!("Set LIT_RPC_URL in .env");
+            return;
+        }
+    };
 
-    let ethereum_private_key = std::env::var("ETHEREUM_PRIVATE_KEY")
-        .expect("ETHEREUM_PRIVATE_KEY environment variable not set");
+    let eoa_private_key = match get_eoa_private_key() {
+        Some(key) => key,
+        None => {
+            println!("Skipping test - no EOA private key configured");
+            println!("Set LIT_EOA_PRIVATE_KEY in .env");
+            return;
+        }
+    };
 
-    let wallet =
-        PrivateKeySigner::from_str(&ethereum_private_key).expect("Failed to parse private key");
-
+    let wallet: LocalWallet = eoa_private_key
+        .parse()
+        .expect("Failed to parse private key");
     println!("Using wallet address: {}", wallet.address());
 
-    let lit_network = LitNetwork::DatilTest;
-
-    let pkp_nft_address = resolve_address(Contract::PKPNFT, lit_network)
+    // Create provider with signer
+    let provider = Provider::<Http>::try_from(&rpc_url).expect("Failed to create provider");
+    let chain_id = provider
+        .get_chainid()
         .await
-        .expect("Failed to resolve PKP NFT contract address");
+        .expect("Failed to get chain ID")
+        .as_u64();
+    println!("Chain ID: {}", chain_id);
 
-    println!("PKP NFT contract address: {}", pkp_nft_address);
-
-    let ethereum_wallet = EthereumWallet::from(wallet.clone());
-    let provider = ProviderBuilder::new()
-        .wallet(ethereum_wallet)
-        .connect(lit_network.rpc_url())
+    // Check wallet balance
+    let balance = provider
+        .get_balance(wallet.address(), None)
         .await
-        .expect("Failed to connect to Ethereum network");
+        .expect("Failed to get balance");
+    println!("Wallet balance: {} wei", balance);
 
-    let pkp_nft = PKPNFT::new(pkp_nft_address, provider.clone());
+    let signer_wallet = wallet.with_chain_id(chain_id);
+    let client = Arc::new(SignerMiddleware::new(provider, signer_wallet));
 
-    let mint_cost = pkp_nft
-        .mintCost()
-        .call()
-        .await
-        .expect("Failed to get mint cost");
+    // Create PKP mint manager
+    let config = naga_dev().with_rpc_url(rpc_url.clone());
+    let mint_manager =
+        PkpMintManager::new(&config, client.clone()).expect("Failed to create PkpMintManager");
 
-    println!("Mint cost: {} wei", mint_cost);
+    // Check mint cost first
+    let pkp_nft_addr: Address = "0xB144B88514316a2f155D22937C76795b8fC9aDCd"
+        .parse()
+        .unwrap();
+    println!("PKP NFT contract: {:?}", pkp_nft_addr);
 
-    let key_type = U256::from(2);
+    // Mint a PKP with key type 2 (ECDSA) and the default keyset
+    println!("Minting PKP...");
+    let key_type = U256::from(2); // ECDSA key type
+    let key_set_id = "naga-keyset1";
+    println!("Key type: {}, Key set ID: {}", key_type, key_set_id);
 
-    println!("🔄 Minting PKP with key type: {}", key_type);
-
-    let tx = pkp_nft.mintNext(key_type).value(mint_cost);
-
-    let pending_tx = tx.send().await.expect("Failed to send mint transaction");
-
-    println!("✅ Transaction sent: {}", pending_tx.tx_hash());
-    println!("⏳ Waiting for transaction to be mined...");
-
-    let receipt = pending_tx
-        .get_receipt()
-        .await
-        .expect("Failed to get transaction receipt");
-
-    println!("✅ Transaction mined!");
-    println!("Transaction hash: {}", receipt.transaction_hash);
-    println!("Block number: {:?}", receipt.block_number);
-    println!("Gas used: {}", receipt.gas_used);
-
-    let logs = receipt.logs();
-    for log in logs {
-        println!("Log topics: {:?}", log.topics());
-
-        if log.topics().len() >= 4 {
-            let token_id = U256::from_be_bytes(log.topics()[3].0);
-            println!("✅ PKP NFT minted! Token ID: {}", token_id);
-
-            let owner = pkp_nft
-                .ownerOf(token_id)
-                .call()
-                .await
-                .expect("Failed to get PKP owner");
-
-            println!("PKP owner: {}", owner);
-            assert_eq!(
-                owner,
-                wallet.address(),
-                "PKP should be owned by the minting wallet"
-            );
-
-            let pkp_pub_key = pkp_nft
-                .getPubkey(token_id)
-                .call()
-                .await
-                .expect("Failed to get PKP public key");
-
-            println!("PKP public key: 0x{}", hex::encode(&pkp_pub_key));
-
-            let eth_address = pkp_nft
-                .getEthAddress(token_id)
-                .call()
-                .await
-                .expect("Failed to get PKP ETH address");
-
-            println!("PKP ETH address: {}", eth_address);
+    let mint_result = match mint_manager.mint_next(key_type, key_set_id).await {
+        Ok(result) => result,
+        Err(e) => {
+            println!("Mint failed with error: {:?}", e);
+            println!("This might be due to:");
+            println!("  - Insufficient balance for mint cost");
+            println!("  - Wrong chain ID (expected Lit Naga Dev chain)");
+            println!("  - Contract issues");
+            panic!("Failed to mint PKP: {:?}", e);
         }
-    }
+    };
+
+    println!("PKP minted successfully!");
+    println!("Transaction hash: {:?}", mint_result.hash);
+    println!("Block number: {:?}", mint_result.receipt.block_number);
+    println!("Token ID: {}", mint_result.data.token_id);
+    println!("Public key: {}", mint_result.data.pubkey);
+    println!("ETH address: {:?}", mint_result.data.eth_address);
+
+    // Verify the PKP data
+    assert!(
+        !mint_result.data.pubkey.is_empty(),
+        "PKP should have a public key"
+    );
+    assert!(
+        mint_result.data.token_id > U256::zero(),
+        "PKP should have a valid token ID"
+    );
+
+    println!("Mint PKP test passed!");
+    println!("\nTo use this PKP in other tests, set these environment variables:");
+    println!("LIT_PKP_PUBLIC_KEY={}", mint_result.data.pubkey);
+    println!("LIT_PKP_TOKEN_ID={}", mint_result.data.token_id);
 }

@@ -1,11 +1,35 @@
+use ethers::signers::{LocalWallet, Signer};
+use ethers::utils::to_checksum;
 use lit_rust_sdk::{
-    auth::load_wallet_from_env,
-    types::{
-        ExecuteJsParams, LitAbility, LitResourceAbilityRequest, LitResourceAbilityRequestResource,
-    },
-    LitNetwork, LitNodeClient, LitNodeClientConfig,
+    create_lit_client, create_siwe_message_with_resources, generate_session_key_pair, naga_dev,
+    sign_siwe_with_eoa, AuthConfig, AuthContext, LitAbility, ResourceAbilityRequest,
 };
-use std::time::Duration;
+use std::env;
+
+fn get_rpc_url() -> Option<String> {
+    env::var("LIT_RPC_URL")
+        .or_else(|_| env::var("LIT_TXSENDER_RPC_URL"))
+        .or_else(|_| env::var("LIT_YELLOWSTONE_PRIVATE_RPC_URL"))
+        .or_else(|_| env::var("LOCAL_RPC_URL"))
+        .ok()
+}
+
+fn normalize_0x_hex(s: String) -> String {
+    if s.starts_with("0x") {
+        s
+    } else {
+        format!("0x{s}")
+    }
+}
+
+fn get_eoa_private_key() -> Option<String> {
+    env::var("LIT_EOA_PRIVATE_KEY")
+        .or_else(|_| env::var("ETHEREUM_PRIVATE_KEY"))
+        .or_else(|_| env::var("LIVE_MASTER_ACCOUNT"))
+        .or_else(|_| env::var("LOCAL_MASTER_ACCOUNT"))
+        .ok()
+        .map(normalize_0x_hex)
+}
 
 const HELLO_WORLD_LIT_ACTION: &str = r#"
 const go = async () => {
@@ -21,72 +45,89 @@ go();
 
 #[tokio::test]
 async fn test_local_session_sigs_hello_world() {
-    let _ = tracing_subscriber::fmt::try_init();
+    let _ = dotenvy::dotenv();
 
-    dotenv::from_path("../.env").ok();
-    dotenv::from_path(".env").ok();
-
-    // Load wallet from environment
-    let wallet =
-        load_wallet_from_env().expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
-
-    println!("🔑 Using wallet address: {}", wallet.address());
-
-    // Configure and connect to Lit Network
-    let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
-        alert_when_unauthorized: true,
-        debug: true,
-        connect_timeout: Duration::from_secs(30),
-        check_node_attestation: false,
+    let rpc_url = match get_rpc_url() {
+        Some(url) => url,
+        None => {
+            println!("Skipping test - no RPC URL configured");
+            println!("Set LIT_RPC_URL in .env");
+            return;
+        }
     };
 
-    let mut client = LitNodeClient::new(config)
+    let eoa_private_key = match get_eoa_private_key() {
+        Some(key) => key,
+        None => {
+            println!("Skipping test - no EOA private key configured");
+            println!("Set LIT_EOA_PRIVATE_KEY or ETHEREUM_PRIVATE_KEY in .env");
+            return;
+        }
+    };
+
+    let wallet: LocalWallet = eoa_private_key
+        .parse()
+        .expect("Failed to parse private key");
+    let wallet_address = to_checksum(&wallet.address(), None);
+    println!("🔑 Using wallet address: {}", wallet_address);
+
+    // Connect to Naga Dev network
+    let config = naga_dev().with_rpc_url(rpc_url);
+    let client = create_lit_client(config)
         .await
-        .expect("Failed to create client");
+        .expect("Failed to connect to Lit Network");
 
-    println!("🔄 Connecting to Lit Network...");
-    client.connect().await.expect("Failed to connect");
-    println!("✅ Connected to {} nodes", client.connected_nodes().len());
+    println!("✅ Connected to Lit Network");
 
-    // Create resource ability requests for Lit Action execution
-    let resource_ability_requests = vec![LitResourceAbilityRequest {
-        resource: LitResourceAbilityRequestResource {
-            resource: "*".to_string(),
-            resource_prefix: "lit-litaction".to_string(),
-        },
-        ability: LitAbility::LitActionExecution.to_string(),
-    }];
+    // Create session key pair and auth context
+    let session_key_pair = generate_session_key_pair();
+    let auth_config = AuthConfig {
+        capability_auth_sigs: vec![],
+        expiration: (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339(),
+        statement: "Lit Protocol Rust SDK - local session sigs test".into(),
+        domain: "localhost".into(),
+        resources: vec![ResourceAbilityRequest {
+            ability: LitAbility::LitActionExecution,
+            resource_id: "*".into(),
+            data: None,
+        }],
+    };
 
-    // Set expiration for session signatures
-    let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+    let nonce = client
+        .handshake_result()
+        .core_node_config
+        .latest_blockhash
+        .clone();
+    let siwe_message = create_siwe_message_with_resources(
+        &wallet_address,
+        &session_key_pair.public_key,
+        &auth_config,
+        &nonce,
+    )
+    .expect("Failed to create SIWE message");
 
-    println!("🔐 Creating local session signatures (no PKP)...");
-
-    // Generate local session signatures without a PKP
-    let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
+    let auth_sig = sign_siwe_with_eoa(&eoa_private_key, &siwe_message)
         .await
-        .expect("Failed to create local session signatures");
+        .expect("Failed to sign SIWE message");
 
-    println!(
-        "✅ Created session signatures for {} nodes",
-        session_sigs.len()
-    );
+    let auth_context = AuthContext {
+        session_key_pair,
+        auth_config,
+        delegation_auth_sig: auth_sig,
+    };
+
+    println!("🔐 Created auth context for Lit Action execution...");
 
     // Execute the Lit Action with local session signatures
     println!("🚀 Executing Lit Action with local session signatures...");
 
-    let execute_params = ExecuteJsParams {
-        code: Some(HELLO_WORLD_LIT_ACTION.to_string()),
-        ipfs_id: None,
-        session_sigs,
-        auth_methods: None,
-        js_params: None,
-    };
-
     let response = client
-        .execute_js(execute_params)
+        .execute_js(
+            Some(HELLO_WORLD_LIT_ACTION.to_string()),
+            None,
+            None,
+            &auth_context,
+        )
         .await
         .expect("Failed to execute Lit Action");
 
@@ -107,58 +148,78 @@ async fn test_local_session_sigs_hello_world() {
 
 #[tokio::test]
 async fn test_local_session_sigs_with_params() {
-    let _ = tracing_subscriber::fmt::try_init();
+    let _ = dotenvy::dotenv();
 
-    dotenv::from_path("../.env").ok();
-    dotenv::from_path(".env").ok();
-
-    // Load wallet from environment
-    let wallet =
-        load_wallet_from_env().expect("Failed to load wallet from ETHEREUM_PRIVATE_KEY env var");
-
-    println!("🔑 Using wallet address: {}", wallet.address());
-
-    // Configure and connect to Lit Network
-    let config = LitNodeClientConfig {
-        lit_network: LitNetwork::DatilDev,
-        alert_when_unauthorized: true,
-        debug: true,
-        connect_timeout: Duration::from_secs(30),
-        check_node_attestation: false,
+    let rpc_url = match get_rpc_url() {
+        Some(url) => url,
+        None => {
+            println!("Skipping test - no RPC URL configured");
+            println!("Set LIT_RPC_URL in .env");
+            return;
+        }
     };
 
-    let mut client = LitNodeClient::new(config)
+    let eoa_private_key = match get_eoa_private_key() {
+        Some(key) => key,
+        None => {
+            println!("Skipping test - no EOA private key configured");
+            println!("Set LIT_EOA_PRIVATE_KEY or ETHEREUM_PRIVATE_KEY in .env");
+            return;
+        }
+    };
+
+    let wallet: LocalWallet = eoa_private_key
+        .parse()
+        .expect("Failed to parse private key");
+    let wallet_address = to_checksum(&wallet.address(), None);
+    println!("🔑 Using wallet address: {}", wallet_address);
+
+    // Connect to Naga Dev network
+    let config = naga_dev().with_rpc_url(rpc_url);
+    let client = create_lit_client(config)
         .await
-        .expect("Failed to create client");
+        .expect("Failed to connect to Lit Network");
 
-    println!("🔄 Connecting to Lit Network...");
-    client.connect().await.expect("Failed to connect");
-    println!("✅ Connected to {} nodes", client.connected_nodes().len());
+    println!("✅ Connected to Lit Network");
 
-    // Create resource ability requests for Lit Action execution
-    let resource_ability_requests = vec![LitResourceAbilityRequest {
-        resource: LitResourceAbilityRequestResource {
-            resource: "*".to_string(),
-            resource_prefix: "lit-litaction".to_string(),
-        },
-        ability: LitAbility::LitActionExecution.to_string(),
-    }];
+    // Create session key pair and auth context
+    let session_key_pair = generate_session_key_pair();
+    let auth_config = AuthConfig {
+        capability_auth_sigs: vec![],
+        expiration: (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339(),
+        statement: "Lit Protocol Rust SDK - local session sigs test".into(),
+        domain: "localhost".into(),
+        resources: vec![ResourceAbilityRequest {
+            ability: LitAbility::LitActionExecution,
+            resource_id: "*".into(),
+            data: None,
+        }],
+    };
 
-    // Set expiration for session signatures
-    let expiration = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+    let nonce = client
+        .handshake_result()
+        .core_node_config
+        .latest_blockhash
+        .clone();
+    let siwe_message = create_siwe_message_with_resources(
+        &wallet_address,
+        &session_key_pair.public_key,
+        &auth_config,
+        &nonce,
+    )
+    .expect("Failed to create SIWE message");
 
-    println!("🔐 Creating local session signatures (no PKP)...");
-
-    // Generate local session signatures without a PKP
-    let session_sigs = client
-        .get_local_session_sigs(&wallet, resource_ability_requests, &expiration, vec![])
+    let auth_sig = sign_siwe_with_eoa(&eoa_private_key, &siwe_message)
         .await
-        .expect("Failed to create local session signatures");
+        .expect("Failed to sign SIWE message");
 
-    println!(
-        "✅ Created session signatures for {} nodes",
-        session_sigs.len()
-    );
+    let auth_context = AuthContext {
+        session_key_pair,
+        auth_config,
+        delegation_auth_sig: auth_sig,
+    };
+
+    println!("🔐 Created auth context for Lit Action execution...");
 
     // Lit Action that demonstrates local session signature capabilities
     let lit_action_with_params = r#"
@@ -183,16 +244,13 @@ async fn test_local_session_sigs_with_params() {
     // Execute the Lit Action
     println!("🚀 Executing Lit Action with local session signatures...");
 
-    let execute_params = ExecuteJsParams {
-        code: Some(lit_action_with_params.to_string()),
-        ipfs_id: None,
-        session_sigs,
-        auth_methods: None,
-        js_params: None,
-    };
-
     let response = client
-        .execute_js(execute_params)
+        .execute_js(
+            Some(lit_action_with_params.to_string()),
+            None,
+            None,
+            &auth_context,
+        )
         .await
         .expect("Failed to execute Lit Action");
 
