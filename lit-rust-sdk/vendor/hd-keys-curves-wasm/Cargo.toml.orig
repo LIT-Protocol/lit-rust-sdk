@@ -1,0 +1,60 @@
+[package]
+authors = ["LIT Protocol Team"]
+categories = ["cryptography"]
+description = "Hierarchical Derived keys for LIT Protocol"
+documentation = "https://docs.rs/hd-keys-curves-wasm"
+edition = "2024"
+homepage = "https://github.com/LIT-Protocol/hd-keys-curves-wasm"
+keywords = ["hierarchical", "bip32", "lit", "wasm", "key"]
+license = "Apache-2.0 OR MIT"
+name = "hd-keys-curves-wasm"
+readme = "README.md"
+repository = "https://github.com/LIT-Protocol/hd-keys-curves-wasm"
+version = "1.0.5"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["k256"]
+ecops = []
+curve25519 = ["lit-rust-crypto/curve25519-dalek", "lit-rust-crypto/vsss-rs", "sha2", "elliptic-curve-tools"]
+ed448 = ["lit-rust-crypto/ed448-goldilocks", "sha3", "elliptic-curve-tools"]
+k256 = ["lit-rust-crypto/k256", "sha2"]
+p256 = ["lit-rust-crypto/p256", "sha2"]
+p384 = ["lit-rust-crypto/p384", "sha2", "elliptic-curve-tools"]
+bls = ["lit-rust-crypto/rust", "sha2"]
+jubjub = ["lit-rust-crypto/jubjub", "blake2", "elliptic-curve-tools"]
+decaf377 = ["lit-rust-crypto/decaf377", "blake2", "elliptic-curve-tools"]
+pasta = ["lit-rust-crypto/pasta", "blake2", "elliptic-curve-tools"]
+sha3 = ["dep:sha3"]
+sha2 = ["dep:sha2"]
+blake2 = ["dep:blake2"]
+
+[dependencies]
+blake2 = { version = "0.10", default-features = false, optional = true }
+ecdsa = { version = "0.16", features = ["arithmetic"] }
+elliptic-curve-tools = { version = "0.1", optional = true }
+digest = { version = "0.10", default-features = false, features = ["alloc"] }
+sha2 = { version = "0.10", default-features = false, optional = true }
+sha3 = { version = "0.10", default-features = false, optional = true }
+subtle = "2.6"
+
+[dependencies.lit-rust-crypto]
+version = "0.6.0"
+features = [
+    "alloc",
+    "arithmetic",
+    "bits",
+    "digest",
+    "expose-field",
+    "hash2curve",
+    "serde",
+]
+
+[target.'cfg(target_pointer_width = "32")'.dependencies]
+getrandom = { version = "0.2.14", features = ["js"] }
+
+[dev-dependencies]
+rand_core = { version = "0.6.4", features = ["std"] }
+rand_chacha = "0.3.1"

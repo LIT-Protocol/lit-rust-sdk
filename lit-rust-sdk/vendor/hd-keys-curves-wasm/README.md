@@ -1,0 +1,1 @@
+HD Keys for all Curves in WASM support

@@ -1,33 +1,11 @@
 use ethers::prelude::*;
 use ethers::signers::{LocalWallet, Signer};
 use lit_rust_sdk::{naga_dev, PkpMintManager};
-use std::env;
 use std::sync::Arc;
 
-fn normalize_0x_hex(s: String) -> String {
-    if s.starts_with("0x") {
-        s
-    } else {
-        format!("0x{s}")
-    }
-}
+mod common;
 
-fn get_rpc_url() -> Option<String> {
-    env::var("LIT_RPC_URL")
-        .or_else(|_| env::var("LIT_TXSENDER_RPC_URL"))
-        .or_else(|_| env::var("LIT_YELLOWSTONE_PRIVATE_RPC_URL"))
-        .or_else(|_| env::var("LOCAL_RPC_URL"))
-        .ok()
-}
-
-fn get_eoa_private_key() -> Option<String> {
-    env::var("LIT_EOA_PRIVATE_KEY")
-        .or_else(|_| env::var("ETHEREUM_PRIVATE_KEY"))
-        .or_else(|_| env::var("LIVE_MASTER_ACCOUNT"))
-        .or_else(|_| env::var("LOCAL_MASTER_ACCOUNT"))
-        .ok()
-        .map(normalize_0x_hex)
-}
+use common::{acquire_pkp_mint_lock, get_eoa_private_key, get_rpc_url, store_cached_pkp};
 
 #[tokio::test]
 async fn test_mint_pkp() {
@@ -92,6 +70,10 @@ async fn test_mint_pkp() {
     let key_set_id = "naga-keyset1";
     println!("Key type: {}, Key set ID: {}", key_type, key_set_id);
 
+    let _mint_lock = acquire_pkp_mint_lock()
+        .await
+        .expect("Failed to acquire PKP mint lock");
+
     let mint_result = match mint_manager.mint_next(key_type, key_set_id).await {
         Ok(result) => result,
         Err(e) => {
@@ -110,6 +92,7 @@ async fn test_mint_pkp() {
     println!("Token ID: {}", mint_result.data.token_id);
     println!("Public key: {}", mint_result.data.pubkey);
     println!("ETH address: {:?}", mint_result.data.eth_address);
+    let _ = store_cached_pkp(&mint_result.data.pubkey);
 
     // Verify the PKP data
     assert!(
