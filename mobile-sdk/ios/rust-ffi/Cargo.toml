@@ -1,0 +1,20 @@
+[package]
+name = "lit-rust-sdk-ffi"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "FFI bindings for Lit Protocol Rust SDK for iOS"
+
+[lib]
+name = "lit_rust_sdk_ffi"
+crate-type = ["staticlib"]
+
+[build-dependencies]
+cbindgen = "0.24"
+
+[dependencies]
+lit-rust-sdk = { path = "../../../lit-rust-sdk" }
+tokio = { version = "1.40", features = ["rt", "time", "net"] }
+chrono = "0.4"
+serde_json = "1.0"
+ethers = { version = "2", default-features = false, features = ["rustls", "abigen"] }

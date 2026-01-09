@@ -113,7 +113,7 @@ package = "lit-frost-taproot"
 [dependencies.hex]
 version = "0.4"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.lit-rust-crypto]
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies.lit-rust-crypto]
 version = "0.6.0"
 features = [
     "blst",
@@ -129,7 +129,7 @@ features = [
     "vsss-rs-default",
 ]
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.lit-rust-crypto]
+[target.'cfg(any(target_arch = "wasm32", target_os = "ios"))'.dependencies.lit-rust-crypto]
 version = "0.6.0"
 default-features = false
 features = [
