@@ -1,0 +1,8 @@
+.build/
+.derived/
+DerivedData/
+Packages/
+xcuserdata/
+*.xcodeproj/
+target/
+LitRustSDKFFI.xcframework/

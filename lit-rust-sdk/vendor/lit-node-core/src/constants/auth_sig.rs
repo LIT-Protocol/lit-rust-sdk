@@ -1,0 +1,6 @@
+pub const AUTH_SIG_DERIVED_VIA_SESSION_SIG: &str = "litSessionSignViaNacl";
+pub const AUTH_SIG_DERIVED_VIA_BLS_NETWORK_SIG: &str = "lit.bls";
+pub const AUTH_SIG_DERIVED_VIA_CONTRACT_SIG: &str = "EIP1271";
+pub const AUTH_SIG_DERIVED_VIA_CONTRACT_SIG_SHA256: &str = "EIP1271_SHA256";
+pub const AUTH_SIG_SESSION_SIG_ALGO: &str = "ed25519";
+pub const AUTH_SIG_BLS_NETWORK_SIG_ALGO: &str = "LIT_BLS";

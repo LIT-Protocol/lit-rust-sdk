@@ -41,7 +41,7 @@ pub fn issue_session_sigs_with_max_price(
     let now = chrono::Utc::now();
     let issued_at = now
         .with_nanosecond((now.nanosecond() / 1_000_000) * 1_000_000)
-        .expect("valid nanosecond")
+        .ok_or_else(|| LitSdkError::Crypto("invalid issuedAt timestamp".into()))?
         .format("%Y-%m-%dT%H:%M:%S%.3fZ")
         .to_string();
 
