@@ -1,3 +1,4 @@
+use base64ct::{Base64, Encoding};
 use chrono::Utc;
 use ethers::middleware::SignerMiddleware;
 use ethers::providers::{Http, Middleware, Provider};
@@ -6,11 +7,13 @@ use ethers::types::{Address, I256, U256};
 use ethers::utils::{format_units, to_checksum};
 use lit_rust_sdk::{
     create_eth_wallet_auth_data, create_lit_client, naga_dev, naga_local, naga_mainnet, naga_proto,
-    naga_staging, naga_test, view_pkps_by_address, AuthConfig, AuthContext, LitAbility, LitClient,
-    LitSdkError, NetworkConfig, Pagination, PaymentManager, PkpMintManager, ResourceAbilityRequest,
+    naga_staging, naga_test, view_pkps_by_address, AuthConfig, AuthContext, DecryptParams,
+    EncryptParams, LitAbility, LitClient, LitSdkError, NetworkConfig, Pagination, PaymentManager,
+    PkpMintManager, ResourceAbilityRequest,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::ffi::{CStr, CString};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::os::raw::c_char;
 use std::ptr;
 use std::str::FromStr;
@@ -94,6 +97,22 @@ fn set_result_message(result_out: *mut *mut c_char, message: String) {
         .unwrap_or_else(|_| CString::new("Failed to create result string").unwrap());
     unsafe {
         *result_out = c_str.into_raw();
+    }
+}
+
+fn parse_optional_json(value: Option<&str>, field_name: &str) -> Result<Option<Value>, LitSdkError> {
+    match value {
+        Some(raw) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                serde_json::from_str(trimmed).map(Some).map_err(|e| {
+                    LitSdkError::Config(format!("Invalid {field_name} JSON: {e}"))
+                })
+            }
+        }
+        None => Ok(None),
     }
 }
 
@@ -283,11 +302,23 @@ pub extern "C" fn lit_auth_context_create(
         expiration,
         statement: "Lit SDK iOS Demo - PKP signing".into(),
         domain: "localhost".into(),
-        resources: vec![ResourceAbilityRequest {
-            ability: LitAbility::PKPSigning,
-            resource_id: "*".into(),
-            data: None,
-        }],
+        resources: vec![
+            ResourceAbilityRequest {
+                ability: LitAbility::PKPSigning,
+                resource_id: "*".into(),
+                data: None,
+            },
+            ResourceAbilityRequest {
+                ability: LitAbility::LitActionExecution,
+                resource_id: "*".into(),
+                data: None,
+            },
+            ResourceAbilityRequest {
+                ability: LitAbility::AccessControlConditionDecryption,
+                resource_id: "*".into(),
+                data: None,
+            },
+        ],
     };
 
     let auth_context = match runtime.block_on(client.create_pkp_auth_context(
@@ -562,6 +593,279 @@ pub extern "C" fn lit_get_balances(
         "ledgerTotal": format_ether_signed(ledger_balance.total_balance_wei),
         "ledgerAvailableWei": ledger_balance.available_balance_wei.to_string(),
         "ledgerAvailable": format_ether_signed(ledger_balance.available_balance_wei),
+    });
+
+    set_result_message(result_out, result_json.to_string());
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn lit_execute_js(
+    client_handle: *mut LitClientHandle,
+    code: *const c_char,
+    js_params_json: *const c_char,
+    auth_context_handle: *mut LitAuthContextHandle,
+    result_out: *mut *mut c_char,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if client_handle.is_null() {
+        set_error_message(error_out, "client_handle is null".to_string());
+        return 1;
+    }
+    if code.is_null() {
+        set_error_message(error_out, "code is null".to_string());
+        return 1;
+    }
+    if auth_context_handle.is_null() {
+        set_error_message(error_out, "auth_context_handle is null".to_string());
+        return 1;
+    }
+
+    let code = unsafe { CStr::from_ptr(code) };
+    let code = match code.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_error_message(error_out, format!("Invalid code: {}", e));
+            return 1;
+        }
+    };
+    if code.trim().is_empty() {
+        set_error_message(error_out, "code is empty".to_string());
+        return 1;
+    }
+
+    let js_params = if js_params_json.is_null() {
+        None
+    } else {
+        let params = unsafe { CStr::from_ptr(js_params_json) };
+        match params.to_str() {
+            Ok(s) => match parse_optional_json(Some(s), "jsParams") {
+                Ok(value) => value,
+                Err(e) => {
+                    set_error(error_out, e);
+                    return 1;
+                }
+            },
+            Err(e) => {
+                set_error_message(error_out, format!("Invalid jsParams: {}", e));
+                return 1;
+            }
+        }
+    };
+
+    let auth_context = unsafe { &(*auth_context_handle).context };
+    let client = unsafe { &(*client_handle).client };
+    let runtime = unsafe { &(*client_handle).runtime };
+
+    let result = match catch_unwind(AssertUnwindSafe(|| {
+        runtime.block_on(client.execute_js(
+            Some(code.to_string()),
+            None,
+            js_params,
+            auth_context,
+        ))
+    })) {
+        Ok(value) => value,
+        Err(_) => {
+            set_error_message(error_out, "execute_js panicked".to_string());
+            return 1;
+        }
+    };
+    let result = match result {
+        Ok(value) => value,
+        Err(e) => {
+            set_error(error_out, e);
+            return 1;
+        }
+    };
+
+    let result_json = json!({
+        "success": result.success,
+        "response": result.response,
+        "signatures": result.signatures,
+        "logs": result.logs,
+    });
+
+    set_result_message(result_out, result_json.to_string());
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn lit_encrypt(
+    client_handle: *mut LitClientHandle,
+    plaintext_ptr: *const u8,
+    plaintext_len: usize,
+    access_control_json: *const c_char,
+    result_out: *mut *mut c_char,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if client_handle.is_null() {
+        set_error_message(error_out, "client_handle is null".to_string());
+        return 1;
+    }
+    if plaintext_ptr.is_null() {
+        set_error_message(error_out, "plaintext is null".to_string());
+        return 1;
+    }
+
+    let plaintext = unsafe { std::slice::from_raw_parts(plaintext_ptr, plaintext_len) };
+    if plaintext.is_empty() {
+        set_error_message(error_out, "plaintext is empty".to_string());
+        return 1;
+    }
+
+    let access_control = if access_control_json.is_null() {
+        None
+    } else {
+        let acc = unsafe { CStr::from_ptr(access_control_json) };
+        match acc.to_str() {
+            Ok(s) => match parse_optional_json(Some(s), "accessControlConditions") {
+                Ok(value) => value,
+                Err(e) => {
+                    set_error(error_out, e);
+                    return 1;
+                }
+            },
+            Err(e) => {
+                set_error_message(error_out, format!("Invalid access control JSON: {}", e));
+                return 1;
+            }
+        }
+    };
+
+    let client = unsafe { &(*client_handle).client };
+    let runtime = unsafe { &(*client_handle).runtime };
+    let params = EncryptParams {
+        data_to_encrypt: plaintext.to_vec(),
+        unified_access_control_conditions: access_control,
+        hashed_access_control_conditions_hex: None,
+        metadata: None,
+    };
+
+    let result = match runtime.block_on(client.encrypt(params)) {
+        Ok(value) => value,
+        Err(e) => {
+            set_error(error_out, e);
+            return 1;
+        }
+    };
+
+    let result_json = json!({
+        "ciphertextBase64": result.ciphertext_base64,
+        "dataToEncryptHashHex": result.data_to_encrypt_hash_hex,
+    });
+
+    set_result_message(result_out, result_json.to_string());
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn lit_decrypt(
+    client_handle: *mut LitClientHandle,
+    ciphertext_base64: *const c_char,
+    data_hash_hex: *const c_char,
+    access_control_json: *const c_char,
+    chain: *const c_char,
+    auth_context_handle: *mut LitAuthContextHandle,
+    result_out: *mut *mut c_char,
+    error_out: *mut *mut c_char,
+) -> i32 {
+    if client_handle.is_null() {
+        set_error_message(error_out, "client_handle is null".to_string());
+        return 1;
+    }
+    if ciphertext_base64.is_null() {
+        set_error_message(error_out, "ciphertext_base64 is null".to_string());
+        return 1;
+    }
+    if data_hash_hex.is_null() {
+        set_error_message(error_out, "data_hash_hex is null".to_string());
+        return 1;
+    }
+    if chain.is_null() {
+        set_error_message(error_out, "chain is null".to_string());
+        return 1;
+    }
+    if auth_context_handle.is_null() {
+        set_error_message(error_out, "auth_context_handle is null".to_string());
+        return 1;
+    }
+
+    let ciphertext_base64 = unsafe { CStr::from_ptr(ciphertext_base64) };
+    let ciphertext_base64 = match ciphertext_base64.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_error_message(error_out, format!("Invalid ciphertext_base64: {}", e));
+            return 1;
+        }
+    };
+
+    let data_hash_hex = unsafe { CStr::from_ptr(data_hash_hex) };
+    let data_hash_hex = match data_hash_hex.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_error_message(error_out, format!("Invalid data_hash_hex: {}", e));
+            return 1;
+        }
+    };
+
+    let chain = unsafe { CStr::from_ptr(chain) };
+    let chain = match chain.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            set_error_message(error_out, format!("Invalid chain: {}", e));
+            return 1;
+        }
+    };
+    if chain.trim().is_empty() {
+        set_error_message(error_out, "chain is empty".to_string());
+        return 1;
+    }
+
+    let access_control = if access_control_json.is_null() {
+        None
+    } else {
+        let acc = unsafe { CStr::from_ptr(access_control_json) };
+        match acc.to_str() {
+            Ok(s) => match parse_optional_json(Some(s), "accessControlConditions") {
+                Ok(value) => value,
+                Err(e) => {
+                    set_error(error_out, e);
+                    return 1;
+                }
+            },
+            Err(e) => {
+                set_error_message(error_out, format!("Invalid access control JSON: {}", e));
+                return 1;
+            }
+        }
+    };
+
+    let params = DecryptParams {
+        ciphertext_base64: ciphertext_base64.to_string(),
+        data_to_encrypt_hash_hex: data_hash_hex.to_string(),
+        unified_access_control_conditions: access_control,
+        hashed_access_control_conditions_hex: None,
+    };
+
+    let auth_context = unsafe { &(*auth_context_handle).context };
+    let client = unsafe { &(*client_handle).client };
+    let runtime = unsafe { &(*client_handle).runtime };
+
+    let result = match runtime.block_on(client.decrypt(params, auth_context, chain)) {
+        Ok(value) => value,
+        Err(e) => {
+            set_error(error_out, e);
+            return 1;
+        }
+    };
+
+    let decrypted_utf8 = String::from_utf8(result.decrypted_data.clone()).ok();
+    let decrypted_base64 = Base64::encode_string(&result.decrypted_data);
+
+    let result_json = json!({
+        "decryptedDataBase64": decrypted_base64,
+        "decryptedDataUtf8": decrypted_utf8,
     });
 
     set_result_message(result_out, result_json.to_string());

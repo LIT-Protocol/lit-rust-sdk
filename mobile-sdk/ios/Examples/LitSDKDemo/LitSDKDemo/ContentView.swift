@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var authStatus: String = "Idle"
     @State private var authError: String?
     @State private var isAuthWorking = false
-    @State private var eoaPrivateKey: String = ""
+    @AppStorage("lit.demo.eoaPrivateKey") private var eoaPrivateKey: String = ""
     @State private var eoaAddress: String?
     @State private var isDerivingAddress = false
     @State private var addressError: String?
@@ -35,6 +35,66 @@ struct ContentView: View {
     @State private var signError: String?
     @State private var isSigning = false
     @State private var signature: String?
+    @State private var litActionCode: String = ContentView.defaultLitActionCode
+    @State private var litActionParams: String = ContentView.defaultLitActionParams
+    @State private var isLitActionParamsAuto = true
+    @State private var isUpdatingLitActionParams = false
+    @State private var executeStatus: String = "Idle"
+    @State private var executeError: String?
+    @State private var executeResponse: String?
+    @State private var executeSignatures: String?
+    @State private var executeLogs: String?
+    @State private var isExecuting = false
+    @State private var accessControlJson: String = ContentView.defaultAccessControlJson
+    @State private var accessControlChain: String = "ethereum"
+    @State private var plaintext: String = "Hello from Lit iOS!"
+    @State private var ciphertextBase64: String = ""
+    @State private var dataHashHex: String = ""
+    @State private var encryptStatus: String = "Idle"
+    @State private var encryptError: String?
+    @State private var isEncrypting = false
+    @State private var decryptStatus: String = "Idle"
+    @State private var decryptError: String?
+    @State private var decryptedText: String?
+    @State private var decryptedBase64: String?
+    @State private var isDecrypting = false
+
+    private static let defaultLitActionCode = #"""
+(async () => {
+  const { name, pkpPublicKey } = jsParams;
+  const toSign = new TextEncoder().encode('This message is exactly 32 bytes');
+  await Lit.Actions.signEcdsa({
+    toSign,
+    publicKey: pkpPublicKey,
+    sigName: 'sig1'
+  });
+  Lit.Actions.setResponse({ response: `hello ${name}` });
+})();
+"""#
+
+    private static let defaultLitActionParams = """
+{
+  "name": "lit",
+  "pkpPublicKey": ""
+}
+"""
+
+    private static let defaultAccessControlJson = """
+[
+  {
+    "conditionType": "evmBasic",
+    "contractAddress": "",
+    "standardContractType": "",
+    "chain": "ethereum",
+    "method": "eth_getBalance",
+    "parameters": [":userAddress", "latest"],
+    "returnValueTest": {
+      "comparator": ">=",
+      "value": "0"
+    }
+  }
+]
+"""
 
     var body: some View {
         NavigationView {
@@ -53,12 +113,13 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header
                         networkCard
-                        clientCard
                         accountCard
                         faucetCard
                         pkpSelectionCard
                         authCard
                         pkpSignCard
+                        litActionCard
+                        encryptionCard
                         statusCard
                         testCard
                     }
@@ -101,6 +162,8 @@ struct ContentView: View {
             resetPkpState()
             resetBalanceState()
             resetSignState()
+            resetLitActionState()
+            resetEncryptionState()
             scheduleAddressDerivation()
         }
         .onChange(of: pkpPublicKey) { newValue in
@@ -109,6 +172,20 @@ struct ContentView: View {
             }
             resetAuthState()
             resetSignState()
+            syncLitActionParamsWithPkp()
+            if isClientReady,
+               isAddressReady,
+               !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !isAuthWorking {
+                createAuthContext()
+            }
+        }
+        .onChange(of: litActionParams) { _ in
+            if isUpdatingLitActionParams {
+                isUpdatingLitActionParams = false
+            } else {
+                isLitActionParamsAuto = false
+            }
         }
         .onAppear {
             if !didAppear {
@@ -128,6 +205,17 @@ struct ContentView: View {
             Text("Create an EOA auth context and sign with a PKP from iOS.")
                 .font(.system(size: 15, weight: .regular, design: .serif))
                 .foregroundColor(.secondary)
+
+            HStack(spacing: 10) {
+                if isInitializing || client == nil {
+                    ProgressView()
+                    Text("Connecting to Lit...")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                } else {
+                    statusPill("Connected", color: .green)
+                }
+            }
         }
     }
 
@@ -173,33 +261,12 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
-            }
-        }
-    }
-
-    private var clientCard: some View {
-        card(title: "Client") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    if isInitializing {
-                        ProgressView()
-                        Text("Connecting...")
-                    } else {
-                        statusPill(client == nil ? "Not Ready" : "Ready", color: client == nil ? .orange : .green)
-                    }
-                }
 
                 if let lastError = lastError {
                     Text(lastError)
                         .font(.footnote)
                         .foregroundColor(.red)
                 }
-
-                Button("Reconnect") {
-                    initializeClient()
-                }
-                .buttonStyle(.bordered)
-                .disabled(isInitializing)
             }
         }
     }
@@ -343,15 +410,45 @@ struct ContentView: View {
 
                 statusRow(title: "PKP Status", value: pkpStatus)
 
-                if !pkps.isEmpty {
-                    Picker("PKPs", selection: $pkpPublicKey) {
+                Menu {
+                    if pkps.isEmpty {
+                        Button("No PKPs found") {}
+                            .disabled(true)
+                    } else {
                         ForEach(pkps) { pkp in
-                            Text("\(pkp.ethAddress) (\(pkp.tokenId))")
-                                .tag(pkp.pubkey)
+                            Button {
+                                pkpPublicKey = pkp.pubkey
+                            } label: {
+                                if pkp.pubkey == pkpPublicKey {
+                                    Label("\(pkp.ethAddress) (\(pkp.tokenId))", systemImage: "checkmark")
+                                } else {
+                                    Text("\(pkp.ethAddress) (\(pkp.tokenId))")
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.menu)
+                } label: {
+                    HStack {
+                        Text(pkpPickerLabel)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
                 }
+                .disabled(pkps.isEmpty)
 
                 if pkpPublicKey.isEmpty {
                     statusPill("No PKP selected", color: .orange)
@@ -521,6 +618,290 @@ struct ContentView: View {
         }
     }
 
+    private var litActionCard: some View {
+        card(title: "Lit Action (execute_js)") {
+            VStack(alignment: .leading, spacing: 12) {
+                if authContext == nil {
+                    statusPill("Create auth context in Step 4", color: .blue)
+                }
+
+                Text("Lit Action code")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                TextEditor(text: $litActionCode)
+                    .frame(minHeight: 140)
+                    .font(.system(.footnote, design: .monospaced))
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+
+                Text("jsParams (JSON)")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                TextEditor(text: $litActionParams)
+                    .frame(minHeight: 90)
+                    .font(.system(.footnote, design: .monospaced))
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+
+                Button {
+                    executeLitAction()
+                } label: {
+                    if isExecuting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Running...")
+                        }
+                    } else {
+                        Text("Run Lit Action")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isExecuting || !isExecuteInputReady || !isClientReady)
+
+                statusRow(title: "Execute Status", value: executeStatus)
+
+                if let executeResponse = executeResponse {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Response")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextEditor(text: .constant(executeResponse))
+                            .frame(minHeight: 120)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.white.opacity(0.8))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                            .disabled(true)
+                    }
+                }
+
+                if let executeSignatures = executeSignatures {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Signatures")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextEditor(text: .constant(executeSignatures))
+                            .frame(minHeight: 120)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.white.opacity(0.8))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                            .disabled(true)
+                    }
+                }
+
+                if let executeLogs = executeLogs, !executeLogs.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Logs")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextEditor(text: .constant(executeLogs))
+                            .frame(minHeight: 80)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.white.opacity(0.8))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                            .disabled(true)
+                    }
+                }
+
+                if let executeError = executeError {
+                    Text(executeError)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+    }
+
+    private var encryptionCard: some View {
+        card(title: "Encrypt / Decrypt") {
+            VStack(alignment: .leading, spacing: 12) {
+                if authContext == nil {
+                    statusPill("Create auth context in Step 4 to decrypt", color: .blue)
+                }
+
+                Text("Access control conditions (JSON)")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                TextEditor(text: $accessControlJson)
+                    .frame(minHeight: 140)
+                    .font(.system(.footnote, design: .monospaced))
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+
+                TextField("Chain (for ACC decryption)", text: $accessControlChain)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+
+                Text("Plaintext")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                TextEditor(text: $plaintext)
+                    .frame(minHeight: 80)
+                    .font(.system(.footnote, design: .monospaced))
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+
+                Button {
+                    encryptPayload()
+                } label: {
+                    if isEncrypting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Encrypting...")
+                        }
+                    } else {
+                        Text("Encrypt")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isEncrypting || !isEncryptInputReady || !isClientReady)
+
+                statusRow(title: "Encrypt Status", value: encryptStatus)
+
+                if let encryptError = encryptError {
+                    Text(encryptError)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+
+                Text("Ciphertext (base64)")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                TextEditor(text: $ciphertextBase64)
+                    .frame(minHeight: 90)
+                    .font(.system(.footnote, design: .monospaced))
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+
+                TextField("Data hash (hex)", text: $dataHashHex)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+
+                Button {
+                    decryptPayload()
+                } label: {
+                    if isDecrypting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Decrypting...")
+                        }
+                    } else {
+                        Text("Decrypt")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isDecrypting || !isDecryptInputReady || !isClientReady)
+
+                statusRow(title: "Decrypt Status", value: decryptStatus)
+
+                if let decryptedText = decryptedText {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Decrypted (utf8)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextEditor(text: .constant(decryptedText))
+                            .frame(minHeight: 80)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.white.opacity(0.8))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                            .disabled(true)
+                    }
+                }
+
+                if let decryptedBase64 = decryptedBase64 {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Decrypted (base64)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextEditor(text: .constant(decryptedBase64))
+                            .frame(minHeight: 80)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.white.opacity(0.8))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                            .disabled(true)
+                    }
+                }
+
+                if let decryptError = decryptError {
+                    Text(decryptError)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+    }
+
     private var statusCard: some View {
         card(title: "Status") {
             VStack(alignment: .leading, spacing: 10) {
@@ -638,6 +1019,16 @@ struct ContentView: View {
         !eoaPrivateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var pkpPickerLabel: String {
+        if let selected = pkps.first(where: { $0.pubkey == pkpPublicKey }) {
+            return "\(selected.ethAddress) (\(selected.tokenId))"
+        }
+        if !pkpPublicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return pkpPublicKey
+        }
+        return "Select PKP"
+    }
+
     private var isAddressReady: Bool {
         if let address = eoaAddress {
             return !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -647,6 +1038,23 @@ struct ContentView: View {
 
     private var isClientReady: Bool {
         client != nil && !isInitializing
+    }
+
+    private var isExecuteInputReady: Bool {
+        let code = litActionCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        return authContext != nil && !code.isEmpty
+    }
+
+    private var isEncryptInputReady: Bool {
+        let message = plaintext.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !message.isEmpty
+    }
+
+    private var isDecryptInputReady: Bool {
+        let cipher = ciphertextBase64.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hash = dataHashHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chain = accessControlChain.trimmingCharacters(in: .whitespacesAndNewlines)
+        return authContext != nil && !cipher.isEmpty && !hash.isEmpty && !chain.isEmpty
     }
 
     private var isSignInputReady: Bool {
@@ -704,6 +1112,26 @@ struct ContentView: View {
         return String(data: data, encoding: .utf8)
     }
 
+    private func parseJsonString(_ value: String) -> Any? {
+        guard let data = value.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    private func renderJsonValue(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value) else {
+            return String(describing: value)
+        }
+        if let data = try? JSONSerialization.data(
+            withJSONObject: value,
+            options: [.prettyPrinted, .sortedKeys]
+        ), let text = String(data: data, encoding: .utf8) {
+            return text
+        }
+        return String(describing: value)
+    }
+
     private func resolveEoaAddress() throws -> String {
         if let address = eoaAddress {
             return address
@@ -730,6 +1158,7 @@ struct ContentView: View {
                     isDerivingAddress = false
                     if isClientReady {
                         refreshBalances()
+                        fetchPkps()
                     }
                 }
             } catch {
@@ -777,7 +1206,9 @@ struct ContentView: View {
                     self.client = client
                     status = "Ready"
                     isInitializing = false
-                    if isAddressReady {
+                    if hasEoaKey {
+                        scheduleAddressDerivation()
+                    } else if isAddressReady {
                         refreshBalances()
                     }
                 }
@@ -857,6 +1288,7 @@ struct ContentView: View {
                         pkpInfo = encodeJson(first)
                         pkpStatus = "Ready"
                     } else {
+                        pkpPublicKey = ""
                         pkpInfo = "No PKPs found. Mint one to continue."
                         pkpStatus = "None found"
                     }
@@ -995,6 +1427,148 @@ struct ContentView: View {
         }
     }
 
+    private func executeLitAction() {
+        guard let client = client else {
+            executeStatus = "Missing client"
+            executeError = "Initialize the Lit client before executing."
+            return
+        }
+        guard let authContext = authContext else {
+            executeStatus = "Missing auth"
+            executeError = "Create an auth context before executing."
+            return
+        }
+
+        executeStatus = "Running"
+        executeError = nil
+        executeResponse = nil
+        executeSignatures = nil
+        executeLogs = nil
+        isExecuting = true
+
+        syncLitActionParamsWithPkp()
+        let params = litActionParams.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedParams = params.isEmpty ? nil : params
+
+        Task {
+            do {
+                let result = try client.executeJs(
+                    code: litActionCode,
+                    jsParamsJson: resolvedParams,
+                    authContext: authContext
+                )
+                await MainActor.run {
+                    executeStatus = "Ready"
+                    if let payload = parseJsonString(result) as? [String: Any] {
+                        if let response = payload["response"] {
+                            executeResponse = renderJsonValue(response)
+                        }
+                        if let signatures = payload["signatures"] {
+                            executeSignatures = renderJsonValue(signatures)
+                        }
+                        executeLogs = payload["logs"] as? String
+                    } else {
+                        executeResponse = result
+                    }
+                    isExecuting = false
+                }
+            } catch {
+                await MainActor.run {
+                    executeStatus = "Failed"
+                    executeError = error.localizedDescription
+                    isExecuting = false
+                }
+            }
+        }
+    }
+
+    private func encryptPayload() {
+        guard let client = client else {
+            encryptStatus = "Missing client"
+            encryptError = "Initialize the Lit client before encrypting."
+            return
+        }
+
+        encryptStatus = "Encrypting"
+        encryptError = nil
+        isEncrypting = true
+        decryptStatus = "Idle"
+        decryptError = nil
+        decryptedText = nil
+        decryptedBase64 = nil
+
+        let acc = accessControlJson.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedAcc = acc.isEmpty ? nil : acc
+
+        Task {
+            do {
+                let result = try client.encrypt(
+                    plaintext: plaintext,
+                    accessControlConditionsJson: resolvedAcc
+                )
+                await MainActor.run {
+                    ciphertextBase64 = result.ciphertextBase64
+                    dataHashHex = result.dataToEncryptHashHex
+                    encryptStatus = "Ready"
+                    isEncrypting = false
+                }
+            } catch {
+                await MainActor.run {
+                    encryptStatus = "Failed"
+                    encryptError = error.localizedDescription
+                    isEncrypting = false
+                }
+            }
+        }
+    }
+
+    private func decryptPayload() {
+        guard let client = client else {
+            decryptStatus = "Missing client"
+            decryptError = "Initialize the Lit client before decrypting."
+            return
+        }
+        guard let authContext = authContext else {
+            decryptStatus = "Missing auth"
+            decryptError = "Create an auth context before decrypting."
+            return
+        }
+
+        decryptStatus = "Decrypting"
+        decryptError = nil
+        decryptedText = nil
+        decryptedBase64 = nil
+        isDecrypting = true
+
+        let acc = accessControlJson.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedAcc = acc.isEmpty ? nil : acc
+        let chain = accessControlChain.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        Task {
+            do {
+                let result = try client.decrypt(
+                    ciphertextBase64: ciphertextBase64,
+                    dataHashHex: dataHashHex,
+                    accessControlConditionsJson: resolvedAcc,
+                    chain: chain,
+                    authContext: authContext
+                )
+                await MainActor.run {
+                    decryptedText = result.decryptedDataUtf8
+                    decryptedBase64 = result.decryptedDataBase64
+                    decryptStatus = "Ready"
+                    isDecrypting = false
+                }
+            } catch {
+                await MainActor.run {
+                    decryptStatus = "Failed"
+                    decryptError = error.localizedDescription
+                    isDecrypting = false
+                }
+            }
+        }
+    }
+
     private func resetClientState() {
         client = nil
         status = "Cleared"
@@ -1010,6 +1584,8 @@ struct ContentView: View {
         resetPkpState()
         resetBalanceState()
         resetSignState()
+        resetLitActionState()
+        resetEncryptionState()
     }
 
     private func resetAuthState() {
@@ -1017,6 +1593,8 @@ struct ContentView: View {
         authStatus = "Idle"
         authError = nil
         isAuthWorking = false
+        resetLitActionState()
+        resetEncryptionState()
     }
 
     private func resetPkpState() {
@@ -1040,6 +1618,68 @@ struct ContentView: View {
         signError = nil
         signature = nil
         isSigning = false
+    }
+
+    private func resetLitActionState() {
+        executeStatus = "Idle"
+        executeError = nil
+        executeResponse = nil
+        executeSignatures = nil
+        executeLogs = nil
+        isExecuting = false
+    }
+
+    private func syncLitActionParamsWithPkp() {
+        guard isLitActionParamsAuto else {
+            return
+        }
+        let pkp = pkpPublicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pkp.isEmpty else {
+            return
+        }
+        let trimmed = litActionParams.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            let fallback = [
+                "name": "lit",
+                "pkpPublicKey": pkp
+            ]
+            if let updated = try? JSONSerialization.data(
+                withJSONObject: fallback,
+                options: [.prettyPrinted, .sortedKeys]
+            ), let text = String(data: updated, encoding: .utf8) {
+                isUpdatingLitActionParams = true
+                litActionParams = text
+                isLitActionParamsAuto = true
+            }
+            return
+        }
+
+        guard let data = trimmed.data(using: .utf8),
+              var obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else {
+            return
+        }
+
+        obj["pkpPublicKey"] = pkp
+        if let updated = try? JSONSerialization.data(
+            withJSONObject: obj,
+            options: [.prettyPrinted, .sortedKeys]
+        ), let text = String(data: updated, encoding: .utf8) {
+            isUpdatingLitActionParams = true
+            litActionParams = text
+            isLitActionParamsAuto = true
+        }
+    }
+
+    private func resetEncryptionState() {
+        encryptStatus = "Idle"
+        encryptError = nil
+        isEncrypting = false
+        decryptStatus = "Idle"
+        decryptError = nil
+        decryptedText = nil
+        decryptedBase64 = nil
+        isDecrypting = false
     }
 
     private func applyDefaultRpc(for network: NetworkConfig) {

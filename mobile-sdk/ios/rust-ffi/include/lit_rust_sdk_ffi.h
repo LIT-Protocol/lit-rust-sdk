@@ -52,6 +52,29 @@ int32_t lit_get_balances(struct LitClientHandle *client_handle,
                          char **result_out,
                          char **error_out);
 
+int32_t lit_execute_js(struct LitClientHandle *client_handle,
+                       const char *code,
+                       const char *js_params_json,
+                       struct LitAuthContextHandle *auth_context_handle,
+                       char **result_out,
+                       char **error_out);
+
+int32_t lit_encrypt(struct LitClientHandle *client_handle,
+                    const uint8_t *plaintext_ptr,
+                    uintptr_t plaintext_len,
+                    const char *access_control_json,
+                    char **result_out,
+                    char **error_out);
+
+int32_t lit_decrypt(struct LitClientHandle *client_handle,
+                    const char *ciphertext_base64,
+                    const char *data_hash_hex,
+                    const char *access_control_json,
+                    const char *chain,
+                    struct LitAuthContextHandle *auth_context_handle,
+                    char **result_out,
+                    char **error_out);
+
 int32_t lit_client_pkp_sign(struct LitClientHandle *client_handle,
                             const char *pkp_public_key,
                             const uint8_t *message_ptr,

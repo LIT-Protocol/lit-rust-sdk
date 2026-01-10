@@ -33,3 +33,13 @@ public struct LitBalances: Codable, Hashable {
     public let ledgerAvailableWei: String
     public let ledgerAvailable: String
 }
+
+public struct LitEncryptResult: Codable, Hashable {
+    public let ciphertextBase64: String
+    public let dataToEncryptHashHex: String
+}
+
+public struct LitDecryptResult: Codable, Hashable {
+    public let decryptedDataBase64: String
+    public let decryptedDataUtf8: String?
+}

@@ -72,6 +72,8 @@ The demo also lets you create an EOA auth context and sign with a PKP:
 - Use **Find PKPs** or **Mint PKP** to populate the PKP picker.
 - Tap **Create Auth Context**.
 - Enter a message and tap **Sign Message** to view the signature JSON.
+- Run an inline Lit Action (execute_js) with custom `jsParams`.
+- Encrypt/decrypt data with editable access control conditions.
 
 You can override the simulator target for `make ios`:
 

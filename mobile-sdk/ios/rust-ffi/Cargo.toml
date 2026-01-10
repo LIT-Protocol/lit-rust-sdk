@@ -18,3 +18,10 @@ tokio = { version = "1.40", features = ["rt", "time", "net"] }
 chrono = "0.4"
 serde_json = "1.0"
 ethers = { version = "2", default-features = false, features = ["rustls", "abigen"] }
+base64ct = "=1.5.3"
+
+[profile.dev]
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"

@@ -72,6 +72,38 @@ func lit_get_balances(
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32
 
+@_silgen_name("lit_execute_js")
+func lit_execute_js(
+    _ clientHandle: LitClientHandle,
+    _ code: UnsafePointer<CChar>,
+    _ jsParamsJson: UnsafePointer<CChar>?,
+    _ authContextHandle: LitAuthContextHandle,
+    _ resultOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32
+
+@_silgen_name("lit_encrypt")
+func lit_encrypt(
+    _ clientHandle: LitClientHandle,
+    _ plaintextPtr: UnsafePointer<UInt8>,
+    _ plaintextLen: Int,
+    _ accessControlJson: UnsafePointer<CChar>?,
+    _ resultOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32
+
+@_silgen_name("lit_decrypt")
+func lit_decrypt(
+    _ clientHandle: LitClientHandle,
+    _ ciphertextBase64: UnsafePointer<CChar>,
+    _ dataHashHex: UnsafePointer<CChar>,
+    _ accessControlJson: UnsafePointer<CChar>?,
+    _ chain: UnsafePointer<CChar>,
+    _ authContextHandle: LitAuthContextHandle,
+    _ resultOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32
+
 func getFFIError(_ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?) -> String? {
     guard let errorOut = errorOut, let errorPtr = errorOut.pointee else {
         return nil

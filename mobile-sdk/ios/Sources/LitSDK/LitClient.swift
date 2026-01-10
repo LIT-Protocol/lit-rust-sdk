@@ -174,6 +174,163 @@ public final class LitClient {
         return try decoder.decode(LitBalances.self, from: data)
     }
 
+    public func executeJs(
+        code: String,
+        jsParamsJson: String? = nil,
+        authContext: LitAuthContext
+    ) throws -> String {
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty else {
+            throw LitSDKError.ffiError("Lit Action code is required.")
+        }
+
+        let trimmedParams = jsParamsJson?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var resultOut: UnsafeMutablePointer<CChar>?
+        var errorOut: UnsafeMutablePointer<CChar>?
+
+        let status = trimmedCode.withCString { codeCString in
+            if let params = trimmedParams, !params.isEmpty {
+                return params.withCString { paramsCString in
+                    lit_execute_js(handle, codeCString, paramsCString, authContext.handle, &resultOut, &errorOut)
+                }
+            }
+            return lit_execute_js(handle, codeCString, nil, authContext.handle, &resultOut, &errorOut)
+        }
+
+        guard status == 0 else {
+            let errorMessage = getFFIError(&errorOut) ?? "Failed to execute Lit Action"
+            throw LitSDKError.ffiError(errorMessage)
+        }
+
+        guard let result = getFFIResult(&resultOut) else {
+            throw LitSDKError.ffiError("Failed to read execute_js result")
+        }
+
+        return result
+    }
+
+    public func encrypt(
+        plaintext: Data,
+        accessControlConditionsJson: String? = nil
+    ) throws -> LitEncryptResult {
+        guard !plaintext.isEmpty else {
+            throw LitSDKError.ffiError("Plaintext is required.")
+        }
+
+        let trimmedAcc = accessControlConditionsJson?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var resultOut: UnsafeMutablePointer<CChar>?
+        var errorOut: UnsafeMutablePointer<CChar>?
+
+        let status = plaintext.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.bindMemory(to: UInt8.self).baseAddress else {
+                return Int32(1)
+            }
+            if let acc = trimmedAcc, !acc.isEmpty {
+                return acc.withCString { accCString in
+                    lit_encrypt(handle, baseAddress, plaintext.count, accCString, &resultOut, &errorOut)
+                }
+            }
+            return lit_encrypt(handle, baseAddress, plaintext.count, nil, &resultOut, &errorOut)
+        }
+
+        guard status == 0 else {
+            let errorMessage = getFFIError(&errorOut) ?? "Failed to encrypt data"
+            throw LitSDKError.ffiError(errorMessage)
+        }
+
+        guard let jsonString = getFFIResult(&resultOut) else {
+            throw LitSDKError.ffiError("Failed to read encrypt result")
+        }
+
+        let decoder = JSONDecoder()
+        guard let data = jsonString.data(using: .utf8) else {
+            throw LitSDKError.ffiError("Failed to decode encrypt result")
+        }
+        return try decoder.decode(LitEncryptResult.self, from: data)
+    }
+
+    public func encrypt(
+        plaintext: String,
+        accessControlConditionsJson: String? = nil
+    ) throws -> LitEncryptResult {
+        guard let data = plaintext.data(using: .utf8) else {
+            throw LitSDKError.ffiError("Plaintext must be UTF-8 encodable.")
+        }
+        return try encrypt(plaintext: data, accessControlConditionsJson: accessControlConditionsJson)
+    }
+
+    public func decrypt(
+        ciphertextBase64: String,
+        dataHashHex: String,
+        accessControlConditionsJson: String? = nil,
+        chain: String,
+        authContext: LitAuthContext
+    ) throws -> LitDecryptResult {
+        let trimmedCiphertext = ciphertextBase64.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedHash = dataHashHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedChain = chain.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedCiphertext.isEmpty else {
+            throw LitSDKError.ffiError("Ciphertext is required.")
+        }
+        guard !trimmedHash.isEmpty else {
+            throw LitSDKError.ffiError("Data hash is required.")
+        }
+        guard !trimmedChain.isEmpty else {
+            throw LitSDKError.ffiError("Chain is required.")
+        }
+
+        let trimmedAcc = accessControlConditionsJson?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var resultOut: UnsafeMutablePointer<CChar>?
+        var errorOut: UnsafeMutablePointer<CChar>?
+
+        let status = trimmedCiphertext.withCString { ciphertextCString in
+            trimmedHash.withCString { hashCString in
+                trimmedChain.withCString { chainCString in
+                    if let acc = trimmedAcc, !acc.isEmpty {
+                        return acc.withCString { accCString in
+                            lit_decrypt(
+                                handle,
+                                ciphertextCString,
+                                hashCString,
+                                accCString,
+                                chainCString,
+                                authContext.handle,
+                                &resultOut,
+                                &errorOut
+                            )
+                        }
+                    }
+                    return lit_decrypt(
+                        handle,
+                        ciphertextCString,
+                        hashCString,
+                        nil,
+                        chainCString,
+                        authContext.handle,
+                        &resultOut,
+                        &errorOut
+                    )
+                }
+            }
+        }
+
+        guard status == 0 else {
+            let errorMessage = getFFIError(&errorOut) ?? "Failed to decrypt data"
+            throw LitSDKError.ffiError(errorMessage)
+        }
+
+        guard let jsonString = getFFIResult(&resultOut) else {
+            throw LitSDKError.ffiError("Failed to read decrypt result")
+        }
+
+        let decoder = JSONDecoder()
+        guard let data = jsonString.data(using: .utf8) else {
+            throw LitSDKError.ffiError("Failed to decode decrypt result")
+        }
+        return try decoder.decode(LitDecryptResult.self, from: data)
+    }
+
     public func pkpSign(
         pkpPublicKey: String,
         message: Data,

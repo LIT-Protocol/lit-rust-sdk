@@ -392,15 +392,18 @@ impl LitClient {
                 "unifiedAccessControlConditions": unified_canonical.clone().unwrap_or_else(|| serde_json::json!([])),
             });
 
+            let key_pair = jit.key_set.get(url).ok_or_else(|| {
+                LitSdkError::Config(format!("missing jit key for node {url}"))
+            })?;
             let encrypted = wallet_encrypt(
-                &jit.key_set[url].secret_key,
-                &jit.key_set[url].public_key,
+                &key_pair.secret_key,
+                &key_pair.public_key,
                 request_data.to_string().as_bytes(),
             )?;
 
             let full_url = compose_lit_url(url, &self.config.endpoints.encryption_sign);
             let body = serde_json::to_value(&encrypted).unwrap();
-            let secret_key = jit.key_set[url].secret_key;
+            let secret_key = key_pair.secret_key;
             let http_cl = http.clone();
             let version_cl = version.clone();
             let request_id_cl = request_id.clone();
@@ -565,15 +568,18 @@ impl LitClient {
                 request_data["jsParams"] = serde_json::json!({ "jsParams": params.clone() });
             }
 
+            let key_pair = jit.key_set.get(url).ok_or_else(|| {
+                LitSdkError::Config(format!("missing jit key for node {url}"))
+            })?;
             let encrypted = wallet_encrypt(
-                &jit.key_set[url].secret_key,
-                &jit.key_set[url].public_key,
+                &key_pair.secret_key,
+                &key_pair.public_key,
                 request_data.to_string().as_bytes(),
             )?;
 
             let full_url = compose_lit_url(url, &self.config.endpoints.execute_js);
             let body = serde_json::to_value(&encrypted).unwrap();
-            let secret_key = jit.key_set[url].secret_key;
+            let secret_key = key_pair.secret_key;
             let http_cl = http.clone();
             let version_cl = version.clone();
             let request_id_cl = request_id.clone();
@@ -927,15 +933,18 @@ impl LitClient {
                 "maxPrice": max_price.to_string(),
             });
 
+            let key_pair = jit.key_set.get(url).ok_or_else(|| {
+                LitSdkError::Config(format!("missing jit key for node {url}"))
+            })?;
             let encrypted = wallet_encrypt(
-                &jit.key_set[url].secret_key,
-                &jit.key_set[url].public_key,
+                &key_pair.secret_key,
+                &key_pair.public_key,
                 request_data.to_string().as_bytes(),
             )?;
 
             let full_url = compose_lit_url(url, &self.config.endpoints.sign_session_key);
             let body = serde_json::to_value(&encrypted).unwrap();
-            let secret_key = jit.key_set[url].secret_key;
+            let secret_key = key_pair.secret_key;
             let http_cl = http.clone();
             let version_cl = version.clone();
             let request_id_cl = request_id.clone();
@@ -1166,15 +1175,18 @@ impl LitClient {
                 }
             }
 
+            let key_pair = jit.key_set.get(url).ok_or_else(|| {
+                LitSdkError::Config(format!("missing jit key for node {url}"))
+            })?;
             let encrypted = wallet_encrypt(
-                &jit.key_set[url].secret_key,
-                &jit.key_set[url].public_key,
+                &key_pair.secret_key,
+                &key_pair.public_key,
                 request_data.to_string().as_bytes(),
             )?;
 
             let full_url = compose_lit_url(url, &self.config.endpoints.sign_session_key);
             let body = serde_json::to_value(&encrypted).unwrap();
-            let secret_key = jit.key_set[url].secret_key;
+            let secret_key = key_pair.secret_key;
             let http_cl = http.clone();
             let version_cl = version.clone();
             let request_id_cl = request_id.clone();
@@ -1424,15 +1436,18 @@ impl LitClient {
                 "authMethods": [],
             });
 
+            let key_pair = jit.key_set.get(url).ok_or_else(|| {
+                LitSdkError::Config(format!("missing jit key for node {url}"))
+            })?;
             let encrypted = wallet_encrypt(
-                &jit.key_set[url].secret_key,
-                &jit.key_set[url].public_key,
+                &key_pair.secret_key,
+                &key_pair.public_key,
                 request_data.to_string().as_bytes(),
             )?;
 
             let full_url = compose_lit_url(url, &self.config.endpoints.pkp_sign);
             let body = serde_json::to_value(&encrypted).unwrap();
-            let secret_key = jit.key_set[url].secret_key;
+            let secret_key = key_pair.secret_key;
             let http_cl = http.clone();
             let version_cl = version.clone();
             let request_id_cl = request_id.clone();
